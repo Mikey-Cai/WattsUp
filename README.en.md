@@ -6,6 +6,8 @@ A macOS menu bar app that draws Sankey (flow) diagrams of **where your Mac's pow
 
 <img src="docs/screenshot.png" width="420" alt="WattsUp panel: memory and power flows">
 
+**Download**: get the zip from [Releases](https://github.com/Mikey-Cai/WattsUp/releases/latest), unzip it and drag WattsUp.app into Applications. The app is not notarized, so macOS blocks the first launch; allow it under System Settings → Privacy & Security → Open Anyway. Requires an Apple-silicon Mac and macOS 14+. The download has no desktop widget.
+
 - **Memory**: five streams (app memory, wired, compressed, file cache, free), counted the same way as Activity Monitor, with a headline "used / total · about N still available". Hover "physical memory", "app memory" or "compressed" to list the ten heaviest processes; you can move the pointer onto the list to read it.
 - **Memory pressure**: the memory card turns faintly yellow on warning and red on critical. Swap shows only the amount used, with a note that under normal pressure it is mostly pages swapped out earlier.
 - **Memory read/write speed**: the combined DRAM bandwidth of all agents, estimated from the memory controller's bandwidth histogram (IOReport · PMP). Against a memcpy load on M6 it was within about 10 %; the top bucket is 128 GB/s, so anything above shows as "128 GB/s or more". The row is hidden on Macs that do not expose it.
