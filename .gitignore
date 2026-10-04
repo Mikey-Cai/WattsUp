@@ -1,0 +1,11 @@
+.build/
+build/
+.DS_Store
+.swiftpm/
+__pycache__/
+# Local signing settings (identity, Team ID)
+scripts/local.env
+# Local working notes, measurements and backups
+Reports/
+backups/
+BUILD_REPORT.md

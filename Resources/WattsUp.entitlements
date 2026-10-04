@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Main app stays UNSANDBOXED (it reads AppleSMC / IOReport). It only
+         declares the Team-ID-prefixed App Group so it may write the widget's
+         snapshot into the shared container without a consent prompt. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>__APP_GROUP__</string>
+    </array>
+</dict>
+</plist>
