@@ -8,11 +8,15 @@ public struct HardwareSnapshot: Codable, Sendable {
     public let timestamp: Date
     public let power: PowerSample
     public let memory: MemorySample
+    /// Additive v0.4 field: DRAM read+write bandwidth estimate (nil = unknown).
+    public let memoryBandwidth: MemoryBandwidthReading?
 
-    public init(timestamp: Date = Date(), power: PowerSample, memory: MemorySample) {
+    public init(timestamp: Date = Date(), power: PowerSample, memory: MemorySample,
+                memoryBandwidth: MemoryBandwidthReading? = nil) {
         self.schemaVersion = 1
         self.timestamp = timestamp
         self.power = power
         self.memory = memory
+        self.memoryBandwidth = memoryBandwidth
     }
 }

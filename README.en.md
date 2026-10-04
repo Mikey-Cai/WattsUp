@@ -8,6 +8,7 @@ A macOS menu bar app that draws Sankey (flow) diagrams of **where your Mac's pow
 
 - **Memory**: five streams (app memory, wired, compressed, file cache, free), counted the same way as Activity Monitor, with a headline "used / total · about N still available". Hover "physical memory", "app memory" or "compressed" to list the ten heaviest processes; you can move the pointer onto the list to read it.
 - **Memory pressure**: the memory card turns faintly yellow on warning and red on critical. Swap shows only the amount used, with a note that under normal pressure it is mostly pages swapped out earlier.
+- **Memory read/write speed**: the combined DRAM bandwidth of all agents, estimated from the memory controller's bandwidth histogram (IOReport · PMP). Against a memcpy load on M6 it was within about 10 %; the top bucket is 128 GB/s, so anything above shows as "128 GB/s or more". The row is hidden on Macs that do not expose it.
 - **Power**: the whole-system reading plus the parts that can actually be read. **Anything unreadable is not shown and never drawn as 0 W**; "other" is the total minus the parts shown.
 - **Panel**: hangs under the menu bar icon and can be resized; pin it to keep it in place, on top, anywhere on screen. Drag either card to reorder them. Theme color, flow direction (total on the left or right) and refresh interval are adjustable.
 - **Desktop widget** (needs your own signing, see below): small shows total power and memory; medium adds CPU, GPU and swap.
@@ -77,8 +78,8 @@ python3 scripts/calibrate2.py                          # staged calibration: idl
 
 ```text
 Sources/WattsUpCore       Pure logic: memory accounting, Sankey layout, power split, sensor state, card reordering, panel geometry, widget snapshot
-Sources/CSensors          C interfaces to AppleSMC / IOReport
-Sources/WattsUpHardware   Sampling: power, memory, CPU busy %, per-process memory
+Sources/CSensors          C interfaces to AppleSMC / IOReport (energy counters and state histograms)
+Sources/WattsUpHardware   Sampling: power, memory, memory bandwidth, CPU busy %, per-process memory
 Sources/WattsUp           Menu bar panel, SwiftUI views, hover process list, sampling schedule
 Sources/WattsUpWidget     WidgetKit desktop widget (packed into an .appex by build.sh)
 Tests/WattsUpCoreTests    Unit tests

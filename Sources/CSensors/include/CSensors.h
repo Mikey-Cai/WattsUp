@@ -39,4 +39,20 @@ int wu_ioreport_sample(WUIOReport *report, WUEnergyChannel *channels,
                        size_t capacity, size_t *count, double *elapsedSeconds,
                        char *error, size_t errorSize);
 
+/* State-format IOReport channels (histograms), e.g. PMP "DCS BW" / "AMCC RD+WR":
+   each state is a bandwidth bucket named like "  4GB/s"; its residency delta is
+   how many sampling windows fell into that bucket. */
+typedef struct WUStateReport WUStateReport;
+typedef struct {
+    char name[64];
+    int64_t count;
+} WUStateBucket;
+
+WUStateReport *wu_state_open(const char *group, const char *subgroup, const char *channel,
+                             char *error, size_t errorSize);
+void wu_state_close(WUStateReport *report);
+/* 0 = success, 1 = initial baseline, negative = failure. */
+int wu_state_sample(WUStateReport *report, WUStateBucket *buckets, size_t capacity, size_t *count,
+                    char *error, size_t errorSize);
+
 #endif

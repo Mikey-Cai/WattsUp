@@ -13,6 +13,7 @@ final class SamplingService {
     private var timerInterval: Double = 0
     private var power: PowerSampler?
     private var memory: MemorySampler?
+    private var bandwidth: MemoryBandwidthSampler?
     private var visible = false
     private var widgetInstalled = false
     private var interval: Double = 2
@@ -63,10 +64,12 @@ final class SamplingService {
             timerInterval = 0
             power = nil
             memory = nil
+            bandwidth = nil
             return
         }
         if power == nil { power = PowerSampler() }
         if memory == nil { memory = MemorySampler() }
+        if bandwidth == nil { bandwidth = MemoryBandwidthSampler() }
         if pollNow { poll() }
         if timer == nil || timerInterval != wanted {
             timer?.cancel()
@@ -83,7 +86,8 @@ final class SamplingService {
     private func poll() {
         guard let power, let memory else { return }
         lastSampleTime = ProcessInfo.processInfo.systemUptime
-        let value = HardwareSnapshot(timestamp: Date(), power: power.sample(), memory: memory.sample())
+        let value = HardwareSnapshot(timestamp: Date(), power: power.sample(), memory: memory.sample(),
+                                     memoryBandwidth: bandwidth?.sample())
         widgetWriter.write(value.widgetSnapshot, force: !visible)
         guard visible else { return }
         DispatchQueue.main.async { [weak self] in self?.onSnapshot?(value) }
@@ -137,6 +141,7 @@ extension HardwareSnapshot {
                                   branches: memoryItems, swapUsedBytes: Units.scalarBytes(memory.swapUsedBytes),
                                   usedBytes: b.map { Double($0.memoryUsedBytes) },
                                   availableBytes: b.map { Double($0.cachedBytes + $0.freeBytes) },
+                                  bandwidth: memoryBandwidth,
                                   pressure: pressure, note: memoryNotes.isEmpty ? nil : memoryNotes))
     }
 }

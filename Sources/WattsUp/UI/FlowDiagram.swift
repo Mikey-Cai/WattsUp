@@ -5,12 +5,15 @@ import WattsUpCore
 let readingAnimation = Animation.easeInOut(duration: 0.4)
 
 enum FlowDisplayUnit {
-    case power, memory
+    case power, memory, bandwidth
 
     func format(_ value: Double?) -> String {
         switch self {
         case .power: return Units.watts(value)
         case .memory: return Units.memory(value)
+        case .bandwidth:
+            guard let value, value.isFinite, value >= 0 else { return "暂无读数" }
+            return String(format: value < 100 ? "%.1f GB/s" : "%.0f GB/s", value)
         }
     }
 }
@@ -311,6 +314,34 @@ private struct BandNodeShape: Shape {
 
 /// Swap on macOS has no fixed ceiling — the system grows swap files on demand —
 /// so only the amount in use is shown (no "of N GB", no proportion bar).
+/// DRAM read+write speed, shown only on Macs that expose the PMP histogram.
+struct MemoryBandwidthView: View {
+    var reading: MemoryBandwidthReading
+    var theme: DashboardTheme = .green
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Label("内存读写", systemImage: "arrow.left.arrow.right")
+                .font(.system(size: 10.5, weight: .medium))
+            Text(reading.atCeiling ? "到了计数上限" : "所有部件合计").foregroundStyle(.secondary)
+            Spacer(minLength: 4)
+            if !reading.atCeiling { Text("约").foregroundStyle(.secondary) }
+            AnimatedReadingText(value: reading.gigabytesPerSecond, unit: .bandwidth)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+            if reading.atCeiling { Text("以上").foregroundStyle(.secondary) }
+        }
+        .font(.system(size: 10.5, weight: .medium, design: .rounded))
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .background(theme.tint.opacity(0.045), in: RoundedRectangle(cornerRadius: 11))
+        .accessibilityElement(children: .combine)
+        .help("内存控制器统计的读写速度（IOReport · PMP）：按速度分档记下的次数推算出平均值，实测误差约一成。计数最高一档是 128 GB/s，超过时只能显示「128 GB/s 以上」。机型的理论上限通常更高，但 CPU 单独跑一般只能用到七八成。")
+    }
+}
+
 struct SwapUsageView: View {
     var usedBytes: Double?
     var theme: DashboardTheme = .green

@@ -197,6 +197,8 @@ struct MemoryDisplay {
     var usedBytes: Double? = nil
     /// 还能用 = 文件缓存 + 完全空闲(系统随时能把缓存腾出来)
     var availableBytes: Double? = nil
+    /// DRAM read+write speed; nil hides the row.
+    var bandwidth: MemoryBandwidthReading? = nil
     var pressure: DisplayPressure
     var note: String?
 }

@@ -27,9 +27,12 @@ struct WattsUpMain {
             printJSON(PowerSampler().probe())
         case ["--dump-json"]:
             let sampler = PowerSampler()
+            let bandwidth = MemoryBandwidthSampler()
             _ = sampler.sample() // IOReport needs two timestamps, not a guessed power.
+            _ = bandwidth.sample()
             Thread.sleep(forTimeInterval: 1)
-            printJSON(HardwareSnapshot(timestamp: Date(), power: sampler.sample(), memory: MemorySampler().sample()))
+            printJSON(HardwareSnapshot(timestamp: Date(), power: sampler.sample(), memory: MemorySampler().sample(),
+                                       memoryBandwidth: bandwidth.sample()))
         case ["--measure-overhead"]:
             measureOverhead()
         case ["--processes"]:

@@ -190,6 +190,9 @@ struct DashboardView: View {
                 }
             )
             SwapUsageView(usedBytes: memory.swapUsedBytes, theme: model.theme, pressureIsNormal: memory.pressure == .normal)
+            if let bandwidth = memory.bandwidth {
+                MemoryBandwidthView(reading: bandwidth, theme: model.theme)
+            }
         }
         .padding(14)
         .glassCard(pressureTint: memory.pressure.tint)

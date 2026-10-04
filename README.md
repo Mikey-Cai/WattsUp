@@ -8,6 +8,7 @@ macOS 菜单栏小工具，用桑基图（流向图）显示这台 Mac 的**电�
 
 - **内存**：分成 App 内存、联动（Wired）、压缩、文件缓存、完全空闲五股，口径和活动监视器一致；顶上一行写「已使用 / 总量 · 还能用约多少」。鼠标停在「物理内存」「App 内存」「压缩」上，旁边列出占用最多的 10 个进程，鼠标可以移到列表上慢慢看。
 - **内存压力**：警告时内存卡淡淡染黄，严重时染红。交换只显示已用量，并说明「压力正常时交换大多是之前换出的」。
+- **内存读写速度**：从内存控制器的带宽统计（IOReport · PMP）推算所有部件合计的读写速度。在 M6 上压测对照，误差约一成；计数最高一档是 128 GB/s，再高只显示「128 GB/s 以上」。读不到的机器不显示这一行。
 - **功耗**：整机读数，加上能读到的分项。**读不到的不显示、也不画成 0**，「其他」= 整机 − 已显示分项。
 - **面板**：挂在菜单栏图标下，可改宽高；钉住后留在原处、置顶，能拖到任何地方。两张卡片按住就能上下拖动换位。主题色、方向（总量在左/右）、刷新间隔可调。
 - **桌面小组件**（需要自己签名，见下文）：小号显示整机功耗和内存，中号再加 CPU、GPU、交换。
@@ -77,8 +78,8 @@ python3 scripts/calibrate2.py                          # 分阶段标定：空�
 
 ```text
 Sources/WattsUpCore       纯逻辑：内存口径、桑基布局、功耗分项、传感器状态、卡片换位、面板几何、小组件快照
-Sources/CSensors          AppleSMC / IOReport 的 C 接口
-Sources/WattsUpHardware   采样：功耗、内存、CPU 忙碌度、进程内存
+Sources/CSensors          AppleSMC / IOReport（能量计数与状态直方图）的 C 接口
+Sources/WattsUpHardware   采样：功耗、内存、内存带宽、CPU 忙碌度、进程内存
 Sources/WattsUp           菜单栏面板、SwiftUI 界面、悬停进程列表、采样调度
 Sources/WattsUpWidget     WidgetKit 桌面小组件（build.sh 手工打包成 .appex）
 Tests/WattsUpCoreTests    单元测试
