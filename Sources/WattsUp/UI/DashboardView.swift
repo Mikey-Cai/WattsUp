@@ -183,6 +183,7 @@ struct DashboardView: View {
             FlowDiagram(
                 sourceTitle: "物理内存", sourceSymbol: "desktopcomputer", total: memory.totalBytes > 0 ? memory.totalBytes : nil,
                 items: memory.branches, unit: .memory, height: 190, gap: 22, showsSourceValue: false,
+                sourceCaption: memory.totalBytes > 0 ? "\(Int((memory.totalBytes / 1_073_741_824).rounded())) GB" : nil,
                 theme: model.theme, direction: model.flowDirection,
                 hoverTargets: [FlowDiagram.sourceHoverID, "app", "compressed"],
                 onHover: { id, inside in

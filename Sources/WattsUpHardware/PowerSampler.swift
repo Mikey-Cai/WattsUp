@@ -75,7 +75,7 @@ public final class PowerSampler {
         // interface total; their power stays in the residual ("其他").
         let components = [
             PowerComponent(id: "cpu", label: "CPU（估计）", watts: cpu,
-                           source: "AppleSMC / PP0b；与 CPU 负载相关（空闲约 2.5 W，满载约 +11 W），电气边界未经官方确认", confirmed: false),
+                           source: "AppleSMC / PP0b；本机分阶段测试中与 CPU 负载相关，物理边界与绝对误差未验证", confirmed: false),
             component("gpu", label: "GPU", acceptedNames: ["GPU Energy", "GPU"], confirmed: true)
         ]
         let now = ProcessInfo.processInfo.systemUptime
@@ -84,15 +84,15 @@ public final class PowerSampler {
         // GPU energy can honestly read ~0 W for long stretches when the GPU is
         // power-gated, so only read failures are tracked for it, not repeats.
         let gpuState = pending ? SensorState.ok : gpuHealth.observe(components[1].watts, at: now, detectStale: false)
-        if cpuState == .stale { diagnostics.append("PP0b has returned the same value for a while; treated as not updating.") }
+        if cpuState == .stale { diagnostics.append("PP0b has returned the identical value for 30 s; treated as not updating.") }
         let breakdown = PowerBreakdown.make(totalWatts: total, cpuEstimateWatts: cpu,
                                             gpuWatts: components[1].watts, gpuPending: pending,
                                             cpuState: cpuState, gpuState: gpuState)
         if breakdown.branch(.cpu)?.status == .withheld || breakdown.branch(.gpu)?.status == .withheld {
             diagnostics.append("Raw rails exceed instantaneous PSTR this tick; the inconsistent reading is withheld from the split instead of being rescaled.")
         }
-        diagnostics.append("CPU uses SMC PP0b as an estimate (tracks CPU load, does not rise under GPU-only load; boundary unconfirmed). ANE/DRAM have no trustworthy rail on M6/macOS 27 and are not shown.")
-        diagnostics.append("PSTR is the SMC system power sensor; its boundary has not been verified against a wall-plug meter. The residual covers memory, storage, interfaces and conversion losses.")
+        diagnostics.append("PP0b is a CPU-correlated proxy on this Mac; the calibration does not establish complete CPU coverage or disjointness from GPU/DRAM. ANE/DRAM have no trustworthy rail on M6/macOS 27 and are not shown.")
+        diagnostics.append("PSTR has not been checked against a wall-plug meter. The residual is an arithmetic remainder (unattributed parts, losses, timing and model error); it is not a DRAM measurement.")
         let unallocated = breakdown.branch(.other)?.watts
         return PowerSample(timestamp: Date(), totalWatts: total, totalSource: "AppleSMC / PSTR",
                            components: components, unallocatedWatts: unallocated,

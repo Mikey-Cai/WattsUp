@@ -80,7 +80,12 @@ final class ProcessHoverController {
     private var hosting: NSHostingView<ProcessListView>?
     private var showWork: DispatchWorkItem?
     private var hideWork: DispatchWorkItem?
+    /// What the list is showing. Not the same as where the pointer is.
     private var currentTarget: MemoryHoverTarget?
+    /// The block the pointer is over now. Tracking areas do not promise that
+    /// enter and exit alternate across areas (A.enter → B.enter → A.exit), so a
+    /// late exit from an old block must not cancel or hide the new one.
+    private var pointerTarget: MemoryHoverTarget?
     private var iconCache: [String: NSImage] = [:]
     private var generation = 0
     private var pointerInList = false
@@ -91,6 +96,7 @@ final class ProcessHoverController {
 
     func pointer(_ target: MemoryHoverTarget, inside: Bool, theme: DashboardTheme) {
         if inside {
+            pointerTarget = target
             hideWork?.cancel()
             hideWork = nil
             showWork?.cancel()
@@ -98,15 +104,18 @@ final class ProcessHoverController {
             if panel?.isVisible == true {
                 show(target)
             } else {
-                let work = DispatchWorkItem { [weak self] in self?.show(target) }
+                let work = DispatchWorkItem { [weak self] in
+                    guard let self, self.pointerTarget == target else { return }
+                    self.show(target)
+                }
                 showWork = work
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
             }
         } else {
-            if currentTarget == nil || currentTarget == target {
-                showWork?.cancel()
-                showWork = nil
-            }
+            guard pointerTarget == target else { return }
+            pointerTarget = nil
+            showWork?.cancel()
+            showWork = nil
             scheduleHide(after: leaveGrace)
         }
     }
@@ -125,7 +134,7 @@ final class ProcessHoverController {
     private func scheduleHide(after delay: TimeInterval) {
         hideWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            guard let self, !self.pointerInList else { return }
+            guard let self, self.pointerTarget == nil, !self.pointerInList else { return }
             // Tracking areas miss an "enter" when the list appears under a still
             // pointer, so also ask where the pointer actually is.
             if let panel = self.panel, panel.isVisible, panel.frame.contains(NSEvent.mouseLocation) {
@@ -144,6 +153,7 @@ final class ProcessHoverController {
         hideWork?.cancel()
         hideWork = nil
         currentTarget = nil
+        pointerTarget = nil
         pointerInList = false
         panel?.orderOut(nil)
     }
@@ -157,7 +167,13 @@ final class ProcessHoverController {
         model.target = target
         if let cached = service.cachedReport, Date().timeIntervalSince(cached.timestamp) < 4 {
             apply(cached, target: target)
-        } else if switching || model.rows.isEmpty {
+        } else if switching {
+            // Rows picked and sorted for another metric must not sit under the new title.
+            model.rows = []
+            model.note = nil
+            model.timestamp = nil
+            model.isLoading = true
+        } else if model.rows.isEmpty {
             model.isLoading = true
         }
         let panel = ensurePanel()

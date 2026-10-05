@@ -29,6 +29,14 @@ final class SensorHealthTests: XCTestCase {
         XCTAssertEqual(h.observe(7, at: 120), .stale)
     }
 
+    func testDefaultsTolerateTheSMCRefreshInterval() {
+        // PP0b repeated the identical float for 2–3 s in the 2026-10-03
+        // calibration; at a 1 s refresh that must not read as a frozen sensor.
+        var h = SensorHealth()
+        for t in 0..<30 { XCTAssertEqual(h.observe(6.471349239349365, at: Double(t)), .ok, "t=\(t)") }
+        XCTAssertEqual(h.observe(6.471349239349365, at: 30), .stale, "30 s without any change is not a refresh gap")
+    }
+
     func testStaleDetectionCanBeTurnedOffForIdleZeroCounters() {
         // A power-gated GPU reads 0 W tick after tick; that is not a frozen counter.
         var h = SensorHealth(staleSeconds: 4, minRepeats: 3)

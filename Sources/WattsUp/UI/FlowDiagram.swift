@@ -59,6 +59,8 @@ struct FlowDiagram: View {
     /// Off when the card already shows this number in its headline, so the
     /// same reading is not printed twice.
     var showsSourceValue = true
+    /// A fixed label under the source title, e.g. the installed RAM ("24 GB").
+    var sourceCaption: String? = nil
     var theme: DashboardTheme = .green
     var direction: FlowDirection = .totalOnLeft
     /// Item ids (and `sourceHoverID` for the total) that report pointer hover.
@@ -217,6 +219,12 @@ struct FlowDiagram: View {
                     .monospacedDigit()
                     .minimumScaleFactor(0.70)
                     .lineLimit(1)
+            } else if let sourceCaption {
+                Text(sourceCaption)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .minimumScaleFactor(0.70)
+                    .lineLimit(1)
             }
         }
         .padding(.vertical, 9)
@@ -312,8 +320,6 @@ private struct BandNodeShape: Shape {
     func path(in rect: CGRect) -> Path { Path(CGRect(x: x, y: y, width: 7, height: max(0, thickness))) }
 }
 
-/// Swap on macOS has no fixed ceiling — the system grows swap files on demand —
-/// so only the amount in use is shown (no "of N GB", no proportion bar).
 /// DRAM read+write speed, shown only on Macs that expose the PMP histogram.
 struct MemoryBandwidthView: View {
     var reading: MemoryBandwidthReading
@@ -323,12 +329,12 @@ struct MemoryBandwidthView: View {
         HStack(spacing: 5) {
             Label("内存读写", systemImage: "arrow.left.arrow.right")
                 .font(.system(size: 10.5, weight: .medium))
-            Text(reading.atCeiling ? "到了计数上限" : "所有部件合计").foregroundStyle(.secondary)
+            Text(reading.mayBeLow ? "触及最高档 · 可能偏低" : "所有部件合计").foregroundStyle(.secondary)
             Spacer(minLength: 4)
-            if !reading.atCeiling { Text("约").foregroundStyle(.secondary) }
-            AnimatedReadingText(value: reading.gigabytesPerSecond, unit: .bandwidth)
+            // Every window in the first bucket: the midpoint (2 GB/s) would be made up.
+            Text(firstBucketOnly ? "不到" : "约").foregroundStyle(.secondary)
+            AnimatedReadingText(value: firstBucketOnly ? reading.upperBound : reading.gigabytesPerSecond, unit: .bandwidth)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
-            if reading.atCeiling { Text("以上").foregroundStyle(.secondary) }
         }
         .font(.system(size: 10.5, weight: .medium, design: .rounded))
         .monospacedDigit()
@@ -338,10 +344,24 @@ struct MemoryBandwidthView: View {
         .padding(.vertical, 9)
         .background(theme.tint.opacity(0.045), in: RoundedRectangle(cornerRadius: 11))
         .accessibilityElement(children: .combine)
-        .help("内存控制器统计的读写速度（IOReport · PMP）：按速度分档记下的次数推算出平均值，实测误差约一成。计数最高一档是 128 GB/s，超过时只能显示「128 GB/s 以上」。机型的理论上限通常更高，但 CPU 单独跑一般只能用到七八成。")
+        .help(helpText)
+    }
+
+    private var firstBucketOnly: Bool { reading.lowerBound == 0 }
+
+    private var helpText: String {
+        var text = "内存控制器统计的读写速度（IOReport · PMP）：按 4 GB/s 一档记下每一小段时间落在哪档，取各档中点加权平均。只算分档本身，实际值在 \(FlowDisplayUnit.bandwidth.format(reading.lowerBound)) 到 \(FlowDisplayUnit.bandwidth.format(reading.upperBound)) 之间。在这台 M6 上和两次压测对照，分别差 +9% 和 −2%。"
+        if reading.topBucketFraction > 0 {
+            let percent = reading.topBucketFraction * 100
+            text += "\n这段时间有 \(percent < 1 ? "不到 1" : String(Int(percent.rounded())))% 落在最高档（124–128 GB/s 及以上）。最高档按中点 126 算"
+            text += reading.mayBeLow ? "，所以实际可能更高，高多少看不出来。" : "；占比很小，影响不到 2 GB/s。"
+        }
+        return text
     }
 }
 
+/// Swap on macOS has no fixed ceiling — the system grows swap files on demand —
+/// so only the amount in use is shown (no "of N GB", no proportion bar).
 struct SwapUsageView: View {
     var usedBytes: Double?
     var theme: DashboardTheme = .green

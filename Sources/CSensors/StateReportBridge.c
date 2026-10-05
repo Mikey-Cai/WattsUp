@@ -62,6 +62,11 @@ WUStateReport *wu_state_open(const char *group, const char *subgroup, const char
     report->channelName = CFStringCreateWithCString(kCFAllocatorDefault, channel, kCFStringEncodingUTF8);
     CFStringRef groupName = CFStringCreateWithCString(kCFAllocatorDefault, group, kCFStringEncodingUTF8);
     CFStringRef subgroupName = subgroup ? CFStringCreateWithCString(kCFAllocatorDefault, subgroup, kCFStringEncodingUTF8) : NULL;
+    if (!report->channelName || !groupName || (subgroup && !subgroupName)) {
+        if (groupName) CFRelease(groupName);
+        if (subgroupName) CFRelease(subgroupName);
+        set_error(error, errorSize, "Invalid UTF-8 or state channel string allocation failed"); wu_state_close(report); return NULL;
+    }
     CFDictionaryRef all = copyChannels(groupName, subgroupName, 0, 0, 0);
     CFRelease(groupName);
     if (subgroupName) CFRelease(subgroupName);
@@ -69,6 +74,7 @@ WUStateReport *wu_state_open(const char *group, const char *subgroup, const char
     // Subscribe to the one channel only: a whole PMP subgroup has ~90 histograms.
     CFArrayRef entries = CFDictionaryGetValue(all, CFSTR("IOReportChannels"));
     CFMutableArrayRef wanted = CFArrayCreateMutable(kCFAllocatorDefault, 0, &kCFTypeArrayCallBacks);
+    if (!wanted) { CFRelease(all); set_error(error, errorSize, "IOReport state array allocation failed"); wu_state_close(report); return NULL; }
     if (entries && CFGetTypeID(entries) == CFArrayGetTypeID()) {
         for (CFIndex i = 0; i < CFArrayGetCount(entries); ++i) {
             CFDictionaryRef entry = CFArrayGetValueAtIndex(entries, i);
@@ -81,6 +87,10 @@ WUStateReport *wu_state_open(const char *group, const char *subgroup, const char
         set_error(error, errorSize, "IOReport state channel not found (or not unique)"); wu_state_close(report); return NULL;
     }
     CFMutableDictionaryRef request = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, all);
+    if (!request) {
+        CFRelease(wanted); CFRelease(all);
+        set_error(error, errorSize, "IOReport state dictionary allocation failed"); wu_state_close(report); return NULL;
+    }
     CFDictionarySetValue(request, CFSTR("IOReportChannels"), wanted);
     CFRelease(wanted);
     CFRelease(all);

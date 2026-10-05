@@ -10,6 +10,9 @@ public final class CPUActivitySampler {
 
     public init() {}
 
+    // mach_host_self() hands out a send-right reference each time it is called.
+    deinit { mach_port_deallocate(mach_task_self_, host) }
+
     /// Busy fraction (0…1) since the previous call; nil on the first call or on failure.
     public func sample() -> Double? {
         var cpuCount: natural_t = 0

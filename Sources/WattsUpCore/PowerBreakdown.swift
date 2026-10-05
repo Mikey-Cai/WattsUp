@@ -70,8 +70,9 @@ public enum PowerBreakdown {
     /// - Parameters:
     ///   - totalWatts: SMC PSTR, the whole-system figure.
     ///   - cpuEstimateWatts: SMC PP0b. Tracks CPU load but its boundary is unconfirmed.
-    ///     In the 2026-10-03 calibration it did not rise under a GPU-only load,
-    ///     so subtracting it alongside GPU energy does not double count.
+    ///     In the 2026-10-03 calibration it did not rise under a GPU-only load
+    ///     (relative to that phase's own idle). Load correlation does not prove
+    ///     disjoint electrical boundaries: this is an estimated split.
     ///   - gpuWatts: IOReport "GPU Energy" Δenergy/Δt.
     ///   - gpuPending: the IOReport subscription exists but has no delta yet.
     ///   - cpuState/gpuState: sensor health across ticks (see `SensorHealth`).

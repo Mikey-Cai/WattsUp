@@ -25,6 +25,13 @@ final class SamplingService {
     func setVisible(_ value: Bool) {
         queue.async { [weak self] in
             guard let self, self.visible != value else { return }
+            if value {
+                // With a widget installed the samplers survive in the background
+                // with a 60 s baseline. Reusing it would mix a minute-long GPU and
+                // bandwidth average with this instant's PSTR in the first frame.
+                self.power = nil
+                self.bandwidth = nil
+            }
             self.visible = value
             self.reschedule(pollNow: value)
         }
@@ -97,11 +104,19 @@ final class SamplingService {
 extension HardwareSnapshot {
     var widgetSnapshot: WidgetSnapshot {
         let b = memory.breakdown
-        return WidgetSnapshot(
-            timestamp: timestamp,
+        // Same checks as the panel: stale, failed or over-budget branches are
+        // not shown. `power.components` keeps the raw readings for diagnostics.
+        let checked = PowerBreakdown.make(
             totalWatts: power.totalWatts,
             cpuEstimateWatts: power.components.first { $0.id == "cpu" }?.watts,
             gpuWatts: power.components.first { $0.id == "gpu" }?.watts,
+            gpuPending: power.energyBaselinePending ?? false,
+            cpuState: power.cpuState ?? .ok, gpuState: power.gpuState ?? .ok)
+        return WidgetSnapshot(
+            timestamp: timestamp,
+            totalWatts: checked.totalWatts,
+            cpuEstimateWatts: checked.plotted.first { $0.kind == .cpu }?.watts,
+            gpuWatts: checked.plotted.first { $0.kind == .gpu }?.watts,
             memoryUsedBytes: b?.memoryUsedBytes,
             memoryTotalBytes: b?.physicalBytes ?? memory.physicalBytes,
             swapUsedBytes: memory.swapUsedBytes,

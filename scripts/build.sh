@@ -81,4 +81,10 @@ else
     codesign --force --sign "$IDENTITY" --timestamp=none "$APP"
 fi
 codesign --verify --strict --deep --verbose=2 "$APP"
+if [[ -n "$APP_GROUP" ]]; then
+    # The App Group prefix must be the signing certificate's own Team ID.
+    REQUIREMENT="anchor apple generic and certificate leaf[subject.OU] = \"$TEAM_ID\""
+    codesign --verify --strict -R "=$REQUIREMENT" "$APPEX"
+    codesign --verify --strict -R "=$REQUIREMENT" "$APP"
+fi
 printf 'Built and signed: %s\n' "$APP"

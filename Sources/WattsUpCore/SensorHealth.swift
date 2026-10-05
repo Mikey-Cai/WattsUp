@@ -15,8 +15,10 @@ public enum SensorState: String, Codable, Sendable {
 /// Single-owner tracker for one sensor; call `observe` once per sample.
 public struct SensorHealth: Sendable {
     /// A value must repeat for at least this long, and over at least
-    /// `minRepeats` samples, before it counts as stale. SMC power sensors can
-    /// legitimately return the same float on two quick reads in a row.
+    /// `minRepeats` samples, before it counts as stale. SMC power sensors
+    /// refresh more slowly than WattsUp polls: in the 2026-10-03 calibration
+    /// PP0b returned the identical float two or three times in a row (about
+    /// 2–3 s), so the defaults leave a wide margin above that.
     public let staleSeconds: TimeInterval
     public let minRepeats: Int
     private var everValid = false
@@ -24,7 +26,7 @@ public struct SensorHealth: Sendable {
     private var sameSince: TimeInterval = 0
     private var repeats = 0
 
-    public init(staleSeconds: TimeInterval = 10, minRepeats: Int = 3) {
+    public init(staleSeconds: TimeInterval = 30, minRepeats: Int = 5) {
         self.staleSeconds = staleSeconds
         self.minRepeats = minRepeats
     }

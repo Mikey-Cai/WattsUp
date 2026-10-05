@@ -101,6 +101,7 @@ WUIOReport *wu_ioreport_open(char *error, size_t errorSize) {
     if (!channels) { set_error(error, errorSize, "IOReportCopyChannelsInGroup(Energy Model) returned NULL"); wu_ioreport_close(report); return NULL; }
     CFMutableDictionaryRef mutableChannels = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, channels);
     CFRelease(channels);
+    if (!mutableChannels) { set_error(error, errorSize, "IOReport channel dictionary allocation failed"); wu_ioreport_close(report); return NULL; }
     report->subscription = createSubscription(NULL, mutableChannels, &report->subscribedChannels, 0, NULL);
     CFRelease(mutableChannels);
     if (!report->subscription || !report->subscribedChannels) {
