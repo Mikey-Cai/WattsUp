@@ -102,6 +102,13 @@ final class SamplingService {
 }
 
 extension HardwareSnapshot {
+    /// Panel and widget level: by what is left, not the kernel's compressor-based level.
+    var headroomLevel: MemoryPressureLevel {
+        let b = memory.breakdown
+        return .fromHeadroom(availableBytes: b.map { $0.cachedBytes + $0.freeBytes },
+                             physicalBytes: b?.physicalBytes ?? memory.physicalBytes, fallback: memory.pressure)
+    }
+
     var widgetSnapshot: WidgetSnapshot {
         let b = memory.breakdown
         // Same checks as the panel: stale, failed or over-budget branches are
@@ -120,7 +127,7 @@ extension HardwareSnapshot {
             memoryUsedBytes: b?.memoryUsedBytes,
             memoryTotalBytes: b?.physicalBytes ?? memory.physicalBytes,
             swapUsedBytes: memory.swapUsedBytes,
-            pressure: memory.pressure.rawValue
+            pressure: headroomLevel.rawValue
         )
     }
 
@@ -133,13 +140,8 @@ extension HardwareSnapshot {
             FlowDisplayItem(id: "cache", title: "文件缓存", value: b.map { Double($0.cachedBytes) }, role: .fileCache, symbol: "doc.on.doc"),
             FlowDisplayItem(id: "free", title: "完全空闲", value: b.map { Double($0.freeBytes) }, role: .free, symbol: "leaf")
         ]
-        let pressure: DisplayPressure
-        switch memory.pressure {
-        case .normal: pressure = .normal
-        case .warning: pressure = .warning
-        case .critical: pressure = .critical
-        case .unknown: pressure = .unknown
-        }
+        let pressure = DisplayPressure(headroomLevel)
+        let systemPressure = DisplayPressure(memory.pressure)
         let adjustment = b.map { "App 含系统会计余量 \($0.accountingAdjustmentBytes >= 0 ? "+" : "−")\(Units.memory(Double($0.accountingAdjustmentBytes.magnitude)))；各项为 VM 口径近似。" }
         let memoryNotes = ([adjustment].compactMap { $0 } + memory.errors).joined(separator: "\n")
         let powerNotes = (["PSTR 为系统传感器读数；不等同于插座功率。"] + power.diagnostics).joined(separator: "\n")
@@ -157,6 +159,7 @@ extension HardwareSnapshot {
                                   usedBytes: b.map { Double($0.memoryUsedBytes) },
                                   availableBytes: b.map { Double($0.cachedBytes + $0.freeBytes) },
                                   bandwidth: memoryBandwidth,
-                                  pressure: pressure, note: memoryNotes.isEmpty ? nil : memoryNotes))
+                                  pressure: pressure, systemPressure: systemPressure,
+                                  note: memoryNotes.isEmpty ? nil : memoryNotes))
     }
 }

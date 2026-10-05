@@ -61,6 +61,8 @@ struct FlowDiagram: View {
     var showsSourceValue = true
     /// A fixed label under the source title, e.g. the installed RAM ("24 GB").
     var sourceCaption: String? = nil
+    /// Point size of the value inside the source box (the power total is the card's headline).
+    var sourceValueSize: CGFloat = 15
     var theme: DashboardTheme = .green
     var direction: FlowDirection = .totalOnLeft
     /// Item ids (and `sourceHoverID` for the total) that report pointer hover.
@@ -215,7 +217,7 @@ struct FlowDiagram: View {
             Text(sourceTitle).font(.system(size: 10, weight: .medium))
             if showsSourceValue {
                 AnimatedReadingText(value: total, unit: unit)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .font(.system(size: sourceValueSize, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .minimumScaleFactor(0.70)
                     .lineLimit(1)
@@ -384,7 +386,7 @@ struct SwapUsageView: View {
         .padding(.vertical, 9)
         .background(theme.tint.opacity(0.045), in: RoundedRectangle(cornerRadius: 11))
         .accessibilityElement(children: .combine)
-        .help("交换文件里放的是内存紧的时候被挤到硬盘上的数据。挤出去以后不会马上搬回来,所以压力正常时这个数也可能好几 GB——它说明之前紧过,不代表现在不够用。真正要看的是右上角的内存压力。")
+        .help("交换文件里放的是内存紧的时候被挤到硬盘上的数据。挤出去以后不会马上搬回来,所以余量充足时这个数也可能好几 GB——它说明之前紧过,不代表现在不够用。真正要看的是右上角的内存余量。")
     }
 }
 

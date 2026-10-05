@@ -176,6 +176,9 @@ struct DashboardView: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
                 .background(memory.pressure.color.opacity(0.10), in: Capsule())
+                .help("按「还能用」占物理内存的比例：20% 以上充足，8%–20% 偏紧，不到 8% 紧张。\n"
+                      + "活动监视器里的「内存压力」是系统自己的算法，看的是压缩和换出有多忙，可能跟这里不一样。"
+                      + "系统现在的判断：\(memory.systemPressure.systemDescription)。")
                 dragHandle(.memory)
             }
             MemorySummaryView(usedBytes: memory.usedBytes, totalBytes: memory.totalBytes > 0 ? memory.totalBytes : nil,
@@ -205,14 +208,12 @@ struct DashboardView: View {
             HStack(spacing: 7) {
                 cardTitle("电力去向", icon: "bolt", color: DisplayColorRole.cpu.color(theme: model.theme))
                 Spacer(minLength: 4)
-                AnimatedReadingText(value: power.totalWatts, unit: .power)
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .monospacedDigit()
                 dragHandle(.power)
             }
             FlowDiagram(
                 sourceTitle: "整机功率", sourceSymbol: "powerplug", total: power.totalWatts,
-                items: model.displayedPowerBranches(power), unit: .power, height: 168, gap: 22, showsSourceValue: false,
+                items: model.displayedPowerBranches(power), unit: .power, height: 168, gap: 22, showsSourceValue: true,
+                sourceValueSize: 20,
                 theme: model.theme, direction: model.flowDirection
             )
             Text("整机来自 SMC 系统功率传感器，GPU 来自系统能耗计数，CPU 为相关电源轨估计；「其他」= 整机 − 已显示分项，含电源转换损耗。鼠标停在各项上可看说明。")

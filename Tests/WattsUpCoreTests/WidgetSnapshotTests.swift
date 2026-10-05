@@ -25,7 +25,7 @@ final class WidgetSnapshotTests: XCTestCase {
 
     func testDerivedValues() {
         XCTAssertEqual(snapshot.memoryUsedFraction ?? -1, 0.5, accuracy: 1e-12)
-        XCTAssertEqual(snapshot.pressureTitle, "警告")
+        XCTAssertEqual(snapshot.pressureTitle, "偏紧")
         var broken = snapshot
         broken.memoryTotalBytes = 0
         XCTAssertNil(broken.memoryUsedFraction)

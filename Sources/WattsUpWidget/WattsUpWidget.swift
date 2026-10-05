@@ -161,7 +161,7 @@ struct WattsUpWidgetView: View {
                 .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
         } else if let snapshot {
             HStack(spacing: 3) {
-                Text("压力 \(snapshot.pressureTitle)")
+                Text("余量 \(snapshot.pressureTitle)")
                 Spacer(minLength: 2)
                 Text(snapshot.timestamp, style: .time)
             }
@@ -221,7 +221,7 @@ struct WattsUpWidgetView: View {
                 Spacer(minLength: 4)
                 HStack(spacing: 4) {
                     Circle().fill(pressureColor(snapshot?.pressure ?? "unknown")).frame(width: 6, height: 6)
-                    Text("压力 \(snapshot?.pressureTitle ?? "未知")")
+                    Text("余量 \(snapshot?.pressureTitle ?? "未知")")
                 }
                 .font(.system(size: 10.5, weight: .medium, design: .rounded))
                 detailRow("交换已用", Format.memory(snapshot?.swapUsedBytes), symbol: "externaldrive")

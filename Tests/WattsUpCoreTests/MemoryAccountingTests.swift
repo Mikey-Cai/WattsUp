@@ -103,4 +103,14 @@ final class MemoryAccountingTests: XCTestCase {
         XCTAssertEqual(decoded.pressure, .unknown)
         XCTAssertEqual(decoded.errors, sample.errors)
     }
+
+    func testHeadroomLevelFollowsWhatIsLeft() {
+        let gb: UInt64 = 1_073_741_824
+        // 10/5: kernel said warning while 6.73 of 24 GB was still reclaimable; the panel now says normal.
+        XCTAssertEqual(MemoryPressureLevel.fromHeadroom(availableBytes: 6_730_000_000, physicalBytes: 24 * gb, fallback: .warning), .normal)
+        XCTAssertEqual(MemoryPressureLevel.fromHeadroom(availableBytes: 3 * gb, physicalBytes: 24 * gb, fallback: .normal), .warning)
+        XCTAssertEqual(MemoryPressureLevel.fromHeadroom(availableBytes: gb, physicalBytes: 24 * gb, fallback: .normal), .critical)
+        XCTAssertEqual(MemoryPressureLevel.fromHeadroom(availableBytes: nil, physicalBytes: 24 * gb, fallback: .warning), .warning)
+        XCTAssertEqual(MemoryPressureLevel.fromHeadroom(availableBytes: gb, physicalBytes: 0, fallback: .unknown), .unknown)
+    }
 }

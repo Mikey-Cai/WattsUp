@@ -7,6 +7,19 @@ public enum MemoryPressureLevel: String, Codable, Sendable, CaseIterable {
     case critical
     case unknown
 
+    /// The level shown on the panel, judged by what is left ("还能用" = file cache + free) as a share
+    /// of physical memory, so it agrees with the numbers beside it. The kernel's own pressure level
+    /// tracks compressor and swap work instead and can read "warning" with gigabytes still reclaimable,
+    /// which users find contradictory. At least 20% left is normal, at least 8% warning, else critical;
+    /// without a breakdown the kernel level is used.
+    public static func fromHeadroom(availableBytes: UInt64?, physicalBytes: UInt64?, fallback: Self) -> Self {
+        guard let available = availableBytes, let physical = physicalBytes, physical > 0 else { return fallback }
+        let fraction = Double(available) / Double(physical)
+        if fraction >= 0.20 { return .normal }
+        if fraction >= 0.08 { return .warning }
+        return .critical
+    }
+
     public static func fromKernelLevel(_ level: Int32) -> Self {
         switch level {
         case 1: return .normal

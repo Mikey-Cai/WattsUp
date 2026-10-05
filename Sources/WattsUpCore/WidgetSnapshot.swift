@@ -52,9 +52,9 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
 
     public var pressureTitle: String {
         switch pressure {
-        case "normal": return "正常"
-        case "warning": return "警告"
-        case "critical": return "严重"
+        case "normal": return "充足"
+        case "warning": return "偏紧"
+        case "critical": return "紧张"
         default: return "未知"
         }
     }

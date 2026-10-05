@@ -71,10 +71,29 @@ enum DisplayPressure {
 
     var title: String {
         switch self {
-        case .normal: return "内存压力 · 正常"
-        case .warning: return "内存压力 · 警告"
-        case .critical: return "内存压力 · 严重"
-        case .unknown: return "内存压力 · 未知"
+        case .normal: return "内存余量 · 充足"
+        case .warning: return "内存余量 · 偏紧"
+        case .critical: return "内存余量 · 紧张"
+        case .unknown: return "内存余量 · 未知"
+        }
+    }
+
+    init(_ level: MemoryPressureLevel) {
+        switch level {
+        case .normal: self = .normal
+        case .warning: self = .warning
+        case .critical: self = .critical
+        case .unknown: self = .unknown
+        }
+    }
+
+    /// How macOS itself rates it (Activity Monitor's memory pressure), for the badge tooltip.
+    var systemDescription: String {
+        switch self {
+        case .normal: return "正常"
+        case .warning: return "警告：程序要的内存超过了物理内存，系统正在压缩、换出，切换 App 时可能偶尔卡一下"
+        case .critical: return "严重：系统已经在大量换出，可能明显变慢"
+        case .unknown: return "读不到"
         }
     }
 
@@ -200,6 +219,8 @@ struct MemoryDisplay {
     /// DRAM read+write speed; nil hides the row.
     var bandwidth: MemoryBandwidthReading? = nil
     var pressure: DisplayPressure
+    /// The kernel's own level, shown only in the tooltip.
+    var systemPressure: DisplayPressure = .unknown
     var note: String?
 }
 
