@@ -12,7 +12,8 @@ A macOS menu bar app that draws Sankey (flow) diagrams of **where your Mac's pow
 - **Memory headroom**: the badge follows what is left (file cache + free) as a share of physical memory: 20% or more is plenty, 8–20% is tight (the card turns faintly yellow), under 8% is low (red), so it agrees with the numbers beside it. Activity Monitor's memory pressure tracks how busy compression and swapping are and can differ; the system's own level is in the badge tooltip. Swap shows only the amount used, with a note that with plenty of headroom it is mostly pages swapped out earlier.
 - **Memory read/write speed**: the combined DRAM bandwidth of all agents, estimated from the memory controller's bandwidth histogram (IOReport · PMP): 4 GB/s buckets, count-weighted midpoints, so bucket rounding alone stays within ±2 GB/s. Two memcpy comparisons on M6 came out +9 % and −2 % (two runs, not a general accuracy figure). The top bucket ends at 128 GB/s and counts as its 126 GB/s midpoint; when more than 5 % of the time falls there the row says the figure may be low. The row is hidden on Macs that do not expose it.
 - **Power**: the whole-system reading plus the parts that can actually be read. **Anything unreadable is not shown and never drawn as 0 W**; "other" is the total minus the parts shown.
-- **Panel**: hangs under the menu bar icon and can be resized; pin it to keep it in place, on top, anywhere on screen. Drag either card to reorder them. Theme color, flow direction (total on the left or right) and refresh interval are adjustable.
+- **Usage**: all-core CPU busy, split by core type (Super, Performance and Efficiency cores on M6; the split comes from the device tree and is shown only when it matches the kernel's core counts); GPU busy (the driver's "Device Utilization %"); disk read/write speed (all physical disks, mounted disk images excluded); network download and upload speed (Ethernet and Wi-Fi combined, VPN/proxy tunnels excluded so traffic is not counted twice). Rows that cannot be read are not shown, and this card only samples while the panel is open and the card is shown.
+- **Panel**: hangs under the menu bar icon and can be resized; pin it to keep it in place, on top, anywhere on screen. Drag any card to reorder them, and choose in the settings which cards to show (at least one). Theme color, flow direction (total on the left or right) and refresh interval are adjustable.
 - **Desktop widget** (needs your own signing, see below): small shows total power and memory; medium adds CPU, GPU and swap.
 - System frameworks only. **No network access**, no data collection.
 
@@ -79,9 +80,9 @@ python3 scripts/calibrate2.py                          # staged calibration: idl
 ## Layout
 
 ```text
-Sources/WattsUpCore       Pure logic: memory accounting, Sankey layout, power split, sensor state, card reordering, panel geometry, widget snapshot
+Sources/WattsUpCore       Pure logic: memory accounting, Sankey layout, power split, sensor state, usage math, card order and visibility, panel geometry, widget snapshot
 Sources/CSensors          C interfaces to AppleSMC / IOReport (energy counters and state histograms)
-Sources/WattsUpHardware   Sampling: power, memory, memory bandwidth, CPU busy %, per-process memory
+Sources/WattsUpHardware   Sampling: power, memory, memory bandwidth, CPU busy %, usage (per-core-type CPU, GPU, disk, network), per-process memory
 Sources/WattsUp           Menu bar panel, SwiftUI views, hover process list, sampling schedule
 Sources/WattsUpWidget     WidgetKit desktop widget (packed into an .appex by build.sh)
 Tests/WattsUpCoreTests    Unit tests

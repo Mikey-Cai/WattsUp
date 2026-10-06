@@ -28,11 +28,13 @@ struct WattsUpMain {
         case ["--dump-json"]:
             let sampler = PowerSampler()
             let bandwidth = MemoryBandwidthSampler()
+            let usage = UsageSampler()
             _ = sampler.sample() // IOReport needs two timestamps, not a guessed power.
             _ = bandwidth.sample()
+            _ = usage.sample()
             Thread.sleep(forTimeInterval: 1)
             printJSON(HardwareSnapshot(timestamp: Date(), power: sampler.sample(), memory: MemorySampler().sample(),
-                                       memoryBandwidth: bandwidth.sample()))
+                                       memoryBandwidth: bandwidth.sample(), usage: usage.sample()))
         case ["--measure-overhead"]:
             measureOverhead()
         case ["--processes"]:
@@ -197,6 +199,8 @@ private final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             if !visible { self?.widgetPresence.check() }
         }
         model.onRefreshIntervalChange = { [weak self] seconds in self?.sampler.setInterval(seconds) }
+        model.onUsageCardVisibilityChange = { [weak self] shown in self?.sampler.setUsageEnabled(shown) }
+        sampler.setUsageEnabled(!model.hiddenCards.contains(.usage))
         model.onRefresh = { [weak self] in self?.sampler.refresh() }
         widgetPresence.onChange = { [weak self] installed in self?.sampler.setWidgetInstalled(installed) }
         // Debug-only: check both appearances without touching system settings.

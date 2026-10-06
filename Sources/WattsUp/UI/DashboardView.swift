@@ -88,12 +88,13 @@ struct DashboardView: View {
     private var cardsSection: some View {
         VStack(spacing: cardSpacing) {
             if let snapshot = model.snapshot {
-                ForEach(model.cardOrder) { card in
+                ForEach(model.visibleCards) { card in
                     let dragging = draggedCard == card
                     Group {
                         switch card {
                         case .memory: memoryCard(snapshot.memory)
                         case .power: powerCard(snapshot.power)
+                        case .usage: usageCard(snapshot.usage)
                         }
                     }
                     .background {
@@ -140,7 +141,7 @@ struct DashboardView: View {
                     NSCursor.closedHand.set()
                     model.onCardDragBegan?()
                 }
-                let order = model.cardOrder
+                let order = model.visibleCards
                 guard let index = order.firstIndex(of: card) else { return }
                 let offset = dragCorrection + Double(value.translation.height)
                 let step = CardReorder.step(heights: order.map { cardHeights[$0] ?? 300 }, index: index,
@@ -225,6 +226,23 @@ struct DashboardView: View {
         .glassCard()
     }
 
+    private func usageCard(_ usage: UsageReading?) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 7) {
+                cardTitle("使用率", icon: "gauge.with.dots.needle.50percent", color: model.theme.tint)
+                Spacer(minLength: 4)
+                dragHandle(.usage)
+            }
+            UsageRowsView(usage: usage, theme: model.theme)
+            Text("CPU 来自内核的核心忙碌时间，GPU 来自显卡驱动统计，磁盘和网络是两次刷新之间的平均速度；读不到的项目不显示。鼠标停在各行上可看说明。")
+                .font(.system(size: 9))
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .glassCard()
+    }
+
     private func dragHandle(_ card: DashboardCard) -> some View {
         Image(systemName: "line.3.horizontal")
             .font(.system(size: 11, weight: .medium))
@@ -232,12 +250,21 @@ struct DashboardView: View {
             .frame(width: 23, height: 30)
             .contentShape(Rectangle())
             .help("按住卡片任意位置上下拖，调整顺序")
-            .accessibilityLabel(card == .memory ? "拖动内存卡调整顺序" : "拖动电力卡调整顺序")
+            .accessibilityLabel("拖动「\(card.title)」卡片调整顺序")
             .contextMenu {
-                Button(model.cardOrder.first == card ? "移到下方" : "移到上方") {
-                    if let other = model.cardOrder.first(where: { $0 != card }) {
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { model.moveCard(card, before: other) }
+                let cards = model.visibleCards
+                if let index = cards.firstIndex(of: card) {
+                    Button("上移") {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { model.moveCard(card, to: index - 1) }
                     }
+                    .disabled(index == 0)
+                    Button("下移") {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { model.moveCard(card, to: index + 1) }
+                    }
+                    .disabled(index == cards.count - 1)
+                    Divider()
+                    Button("隐藏这张卡片") { model.setCard(card, visible: false) }
+                        .disabled(!model.canHideCard(card))
                 }
             }
     }
@@ -321,6 +348,19 @@ struct DashboardView: View {
                     .buttonStyle(.plain)
                 }
                 Spacer()
+            }
+            HStack(spacing: 16) {
+                settingTitle("显示卡片")
+                ForEach(DashboardCard.allCases) { card in
+                    let shown = !model.hiddenCards.contains(card)
+                    Toggle(card.title, isOn: Binding(get: { shown }, set: { model.setCard(card, visible: $0) }))
+                        .font(.system(size: 10))
+                        .toggleStyle(.checkbox)
+                        .fixedSize()
+                        .disabled(shown && !model.canHideCard(card))
+                        .help(shown && !model.canHideCard(card) ? "至少留一张卡片" : "勾选的卡片显示在面板里，按住卡片可以上下拖动换位")
+                }
+                Spacer(minLength: 0)
             }
             HStack(spacing: 16) {
                 settingTitle("电力分项")

@@ -5,7 +5,7 @@ import WattsUpCore
 let readingAnimation = Animation.easeInOut(duration: 0.4)
 
 enum FlowDisplayUnit {
-    case power, memory, bandwidth
+    case power, memory, bandwidth, rate, percent
 
     func format(_ value: Double?) -> String {
         switch self {
@@ -14,6 +14,8 @@ enum FlowDisplayUnit {
         case .bandwidth:
             guard let value, value.isFinite, value >= 0 else { return "暂无读数" }
             return String(format: value < 100 ? "%.1f GB/s" : "%.0f GB/s", value)
+        case .rate: return Units.rate(value)
+        case .percent: return Units.percent(value)
         }
     }
 }
@@ -23,6 +25,7 @@ enum FlowDisplayUnit {
 struct AnimatedReadingText: View {
     var value: Double?
     var unit: FlowDisplayUnit
+    var placeholder = "暂无读数"
 
     var body: some View {
         Group {
@@ -30,7 +33,7 @@ struct AnimatedReadingText: View {
                 InterpolatedReadingText(value: value, unit: unit)
                     .animation(readingAnimation, value: value)
             } else {
-                Text("暂无读数")
+                Text(placeholder)
             }
         }
     }

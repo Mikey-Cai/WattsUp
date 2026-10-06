@@ -15,6 +15,14 @@ public final class CPUActivitySampler {
 
     /// Busy fraction (0…1) since the previous call; nil on the first call or on failure.
     public func sample() -> Double? {
+        guard let ticks = Self.ticks(host: host) else { return nil }
+        defer { previous = ticks }
+        guard let previous else { return nil }
+        return CPUActivity.busyFraction(previous: previous, current: ticks)
+    }
+
+    /// Per-CPU user, system, idle, nice tick counters, CPU by CPU.
+    static func ticks(host: mach_port_t) -> [UInt32]? {
         var cpuCount: natural_t = 0
         var info: processor_info_array_t?
         var infoCount: mach_msg_type_number_t = 0
@@ -24,9 +32,6 @@ public final class CPUActivitySampler {
             vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: info)),
                           vm_size_t(Int(infoCount) * MemoryLayout<integer_t>.stride))
         }
-        let ticks = (0..<Int(infoCount)).map { UInt32(bitPattern: info[$0]) }
-        defer { previous = ticks }
-        guard let previous else { return nil }
-        return CPUActivity.busyFraction(previous: previous, current: ticks)
+        return (0..<Int(infoCount)).map { UInt32(bitPattern: info[$0]) }
     }
 }

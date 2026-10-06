@@ -24,4 +24,21 @@ public enum Units {
         }
         return String(format: "%.2f GB", locale: Locale(identifier: "en_US_POSIX"), gibibytes(bytes))
     }
+
+    /// Disk and network speed in decimal units, like Activity Monitor's
+    /// "数据读取/秒": KB/s below 1 MB/s, GB/s from 1000 MB/s up.
+    public static func rate(_ bytesPerSecond: Double?) -> String {
+        guard let value = bytesPerSecond, value.isFinite, value >= 0 else { return "未知" }
+        let posix = Locale(identifier: "en_US_POSIX")
+        if value < 1e6 { return String(format: "%.0f KB/s", locale: posix, value / 1e3) }
+        if value < 1e8 { return String(format: "%.1f MB/s", locale: posix, value / 1e6) }
+        if value < 1e9 { return String(format: "%.0f MB/s", locale: posix, value / 1e6) }
+        return String(format: "%.2f GB/s", locale: posix, value / 1e9)
+    }
+
+    /// A 0…1 fraction as a whole percentage, clamped.
+    public static func percent(_ fraction: Double?) -> String {
+        guard let fraction, fraction.isFinite else { return "未知" }
+        return "\(Int((min(1, max(0, fraction)) * 100).rounded()))%"
+    }
 }

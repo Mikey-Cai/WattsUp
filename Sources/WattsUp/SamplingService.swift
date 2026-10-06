@@ -14,6 +14,10 @@ final class SamplingService {
     private var power: PowerSampler?
     private var memory: MemorySampler?
     private var bandwidth: MemoryBandwidthSampler?
+    /// Only alive while the panel is open and the usage card is shown; the
+    /// widget never needs it.
+    private var usage: UsageSampler?
+    private var usageEnabled = true
     private var visible = false
     private var widgetInstalled = false
     private var interval: Double = 2
@@ -32,6 +36,7 @@ final class SamplingService {
                 self.power = nil
                 self.bandwidth = nil
             }
+            self.usage = nil
             self.visible = value
             self.reschedule(pollNow: value)
         }
@@ -43,6 +48,15 @@ final class SamplingService {
             guard let self, self.widgetInstalled != value else { return }
             self.widgetInstalled = value
             self.reschedule(pollNow: value && !self.visible)
+        }
+    }
+
+    func setUsageEnabled(_ value: Bool) {
+        queue.async { [weak self] in
+            guard let self, self.usageEnabled != value else { return }
+            self.usageEnabled = value
+            self.usage = nil
+            if value && self.visible { self.poll() }
         }
     }
 
@@ -72,6 +86,7 @@ final class SamplingService {
             power = nil
             memory = nil
             bandwidth = nil
+            usage = nil
             return
         }
         if power == nil { power = PowerSampler() }
@@ -93,8 +108,10 @@ final class SamplingService {
     private func poll() {
         guard let power, let memory else { return }
         lastSampleTime = ProcessInfo.processInfo.systemUptime
+        if visible && usageEnabled && usage == nil { usage = UsageSampler() }
         let value = HardwareSnapshot(timestamp: Date(), power: power.sample(), memory: memory.sample(),
-                                     memoryBandwidth: bandwidth?.sample())
+                                     memoryBandwidth: bandwidth?.sample(),
+                                     usage: visible && usageEnabled ? usage?.sample() : nil)
         widgetWriter.write(value.widgetSnapshot, force: !visible)
         guard visible else { return }
         DispatchQueue.main.async { [weak self] in self?.onSnapshot?(value) }
@@ -160,6 +177,7 @@ extension HardwareSnapshot {
                                   availableBytes: b.map { Double($0.cachedBytes + $0.freeBytes) },
                                   bandwidth: memoryBandwidth,
                                   pressure: pressure, systemPressure: systemPressure,
-                                  note: memoryNotes.isEmpty ? nil : memoryNotes))
+                                  note: memoryNotes.isEmpty ? nil : memoryNotes),
+            usage: usage)
     }
 }

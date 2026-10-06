@@ -35,8 +35,15 @@ enum FlowDirection: String, CaseIterable, Identifiable {
 }
 
 enum DashboardCard: String, CaseIterable, Identifiable {
-    case memory, power
+    case memory, power, usage
     var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .memory: return "内存去向"
+        case .power: return "电力去向"
+        case .usage: return "使用率"
+        }
+    }
 }
 
 enum DisplayColorRole: String {
@@ -228,6 +235,8 @@ struct DashboardSnapshot {
     var timestamp: Date = Date()
     var power: PowerDisplay
     var memory: MemoryDisplay
+    /// nil while the usage card is hidden (nothing is sampled for it then).
+    var usage: UsageReading? = nil
 }
 
 @MainActor
@@ -240,7 +249,9 @@ final class DashboardViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published private(set) var theme: DashboardTheme = .green
     @Published private(set) var flowDirection: FlowDirection = .totalOnLeft
-    @Published private(set) var cardOrder: [DashboardCard] = [.memory, .power]
+    /// Every card, shown or hidden, in the user's order.
+    @Published private(set) var cardOrder: [DashboardCard] = DashboardCard.allCases
+    @Published private(set) var hiddenCards: Set<DashboardCard> = []
     @Published private(set) var enabledPowerComponents: Set<String> = ["cpu", "gpu"]
 
     private let defaults: UserDefaults
@@ -248,6 +259,8 @@ final class DashboardViewModel: ObservableObject {
     private let directionKey = "WattsUp.flowDirection.v2"
     private let cardOrderKey = "WattsUp.cardOrder.v2"
     private let powerComponentsKey = "WattsUp.enabledPowerComponents.v2"
+    /// Stores the hidden cards, so a card added in a later version shows up by default.
+    private let hiddenCardsKey = "WattsUp.hiddenCards.v1"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -257,10 +270,11 @@ final class DashboardViewModel: ObservableObject {
         if let raw = defaults.string(forKey: directionKey), let direction = FlowDirection(rawValue: raw) {
             flowDirection = direction
         }
-        if let raw = defaults.stringArray(forKey: cardOrderKey) {
-            let restored = raw.compactMap(DashboardCard.init(rawValue:))
-            if restored.count == 2, Set(restored).count == 2 { cardOrder = restored }
-        }
+        // A v0.5 save lists only memory and power; the usage card is appended.
+        cardOrder = CardOrdering.restore(saved: defaults.stringArray(forKey: cardOrderKey),
+                                         all: DashboardCard.allCases.map(\.rawValue)).compactMap(DashboardCard.init(rawValue:))
+        let hidden = Set((defaults.stringArray(forKey: hiddenCardsKey) ?? []).compactMap(DashboardCard.init(rawValue:)))
+        if hidden.count < DashboardCard.allCases.count { hiddenCards = hidden }
         if let restored = defaults.stringArray(forKey: powerComponentsKey) {
             // v0.2 stored "pcie" too; that branch no longer exists.
             enabledPowerComponents = Set(restored).intersection(Self.powerComponentIDs)
@@ -280,6 +294,10 @@ final class DashboardViewModel: ObservableObject {
     var onCardDragBegan: (() -> Void)?
     /// Pointer entered (true) or left (false) a memory block.
     var onMemoryHover: ((MemoryHoverTarget, Bool) -> Void)?
+    /// The usage card was shown (true) or hidden (false); its sampling follows.
+    var onUsageCardVisibilityChange: ((Bool) -> Void)?
+
+    var visibleCards: [DashboardCard] { cardOrder.filter { !hiddenCards.contains($0) } }
 
     static let powerComponentIDs: Set<String> = ["cpu", "gpu"]
 
@@ -304,16 +322,29 @@ final class DashboardViewModel: ObservableObject {
         defaults.set(value.rawValue, forKey: directionKey)
     }
 
-    func moveCard(_ card: DashboardCard, before target: DashboardCard) {
-        guard card != target, let index = cardOrder.firstIndex(of: target) else { return }
-        moveCard(card, to: index)
+    /// - Parameter index: the new position among the visible cards.
+    func moveCard(_ card: DashboardCard, to index: Int) {
+        let moved = CardOrdering.move(card.rawValue, toVisibleIndex: index, order: cardOrder.map(\.rawValue),
+                                      visible: Set(visibleCards.map(\.rawValue)))
+            .compactMap(DashboardCard.init(rawValue:))
+        guard moved != cardOrder else { return }
+        cardOrder = moved
+        defaults.set(cardOrder.map(\.rawValue), forKey: cardOrderKey)
     }
 
-    func moveCard(_ card: DashboardCard, to index: Int) {
-        guard let from = cardOrder.firstIndex(of: card), cardOrder.indices.contains(index), from != index else { return }
-        cardOrder.remove(at: from)
-        cardOrder.insert(card, at: index)
-        defaults.set(cardOrder.map(\.rawValue), forKey: cardOrderKey)
+    func canHideCard(_ card: DashboardCard) -> Bool {
+        CardOrdering.canHide(card.rawValue, hidden: Set(hiddenCards.map(\.rawValue)), all: cardOrder.map(\.rawValue))
+    }
+
+    func setCard(_ card: DashboardCard, visible: Bool) {
+        if visible {
+            hiddenCards.remove(card)
+        } else {
+            guard canHideCard(card) else { return }
+            hiddenCards.insert(card)
+        }
+        defaults.set(hiddenCards.map(\.rawValue).sorted(), forKey: hiddenCardsKey)
+        if card == .usage { onUsageCardVisibilityChange?(visible) }
     }
 
     func setPowerComponent(_ id: String, enabled: Bool) {
