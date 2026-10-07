@@ -38,13 +38,17 @@ struct DashboardView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .tint(model.theme.tint)
+        .environment(\.panelFrost, model.glassFrost)
         .background {
+            // Only the glass changes with the 玻璃 slider; text and charts stay fully opaque.
             ZStack {
-                GlassBackground()
-                LinearGradient(colors: [model.theme.tint.opacity(colorScheme == .dark ? 0.16 : 0.12),
-                                        model.theme.tint.opacity(colorScheme == .dark ? 0.08 : 0.04)],
+                PanelGlass(frost: model.glassFrost)
+                Color(nsColor: .windowBackgroundColor).opacity(0.38 * model.glassFrost)
+                LinearGradient(colors: [model.theme.tint.opacity((colorScheme == .dark ? 0.16 : 0.12) * (0.35 + 0.65 * model.glassFrost)),
+                                        model.theme.tint.opacity((colorScheme == .dark ? 0.08 : 0.04) * (0.35 + 0.65 * model.glassFrost))],
                                startPoint: .topLeading, endPoint: .bottomTrailing)
             }
+            .animation(.easeOut(duration: 0.15), value: model.glassFrost)
         }
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay {
@@ -368,17 +372,15 @@ struct DashboardView: View {
                 powerToggle("GPU", id: "gpu")
                 Spacer(minLength: 0)
             }
-            if model.isPinned {
-                HStack(spacing: 10) {
-                    settingTitle("不透明度")
-                    Slider(value: Binding(get: { model.opacity }, set: { model.setOpacity($0) }), in: 0.55...1)
-                        .controlSize(.mini)
-                        .accessibilityLabel("浮窗不透明度")
-                    Text("\(Int((model.opacity * 100).rounded()))%")
-                        .font(.system(size: 10)).monospacedDigit().foregroundStyle(.secondary)
-                        .frame(width: 34, alignment: .trailing)
-                }
+            HStack(spacing: 8) {
+                settingTitle("玻璃")
+                Text("透明").font(.system(size: 10)).foregroundStyle(.secondary)
+                Slider(value: Binding(get: { model.glassFrost }, set: { model.setGlassFrost($0) }), in: 0...1)
+                    .controlSize(.mini)
+                    .accessibilityLabel("玻璃效果，从透明到着色")
+                Text("着色").font(.system(size: 10)).foregroundStyle(.secondary)
             }
+            .help("像 iPhone 设置里的液态玻璃：往左更通透，能看清后面的桌面；往右磨砂、着色更重，字更好认。只改玻璃本身，文字和图表始终不透明。")
             if let error = model.errorMessage {
                 Label(error, systemImage: "exclamationmark.circle")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
@@ -415,15 +417,63 @@ private struct CardHeightKey: PreferenceKey {
     }
 }
 
-private struct GlassBackground: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .hudWindow
-        view.blendingMode = .behindWindow
-        view.state = .active
-        return view
+/// The panel's glass, from clear (0) to frosted and tinted (1). On macOS 26 and
+/// later it is Liquid Glass (NSGlassEffectView, clear style) with the frosted
+/// HUD material faded in on top; older systems only fade the frosted material.
+private struct PanelGlass: NSViewRepresentable {
+    var frost: Double
+
+    func makeNSView(context: Context) -> GlassView { GlassView() }
+    func updateNSView(_ nsView: GlassView, context: Context) { nsView.frost = frost }
+
+    final class GlassView: NSView {
+        private let frosted = NSVisualEffectView()
+        private var hasLiquidGlass = false
+        var frost: Double = 1 { didSet { frosted.alphaValue = frostedAlpha } }
+
+        init() {
+            super.init(frame: .zero)
+            if #available(macOS 26.0, *) {
+                let glass = NSGlassEffectView()
+                glass.style = .clear
+                glass.cornerRadius = 20
+                fill(with: glass)
+                hasLiquidGlass = true
+            }
+            frosted.material = .hudWindow
+            frosted.blendingMode = .behindWindow
+            frosted.state = .active
+            fill(with: frosted)
+            frosted.alphaValue = frostedAlpha
+        }
+
+        required init?(coder: NSCoder) { nil }
+
+        /// Without Liquid Glass underneath, fading the material out completely
+        /// would leave bare desktop, so a little frosting always stays.
+        private var frostedAlpha: CGFloat { CGFloat(hasLiquidGlass ? frost : 0.3 + 0.7 * frost) }
+
+        private func fill(with view: NSView) {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(view)
+            NSLayoutConstraint.activate([
+                view.leadingAnchor.constraint(equalTo: leadingAnchor), view.trailingAnchor.constraint(equalTo: trailingAnchor),
+                view.topAnchor.constraint(equalTo: topAnchor), view.bottomAnchor.constraint(equalTo: bottomAnchor)
+            ])
+        }
     }
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
+/// How frosted the panel glass is (0 clear … 1 tinted); cards follow it.
+private struct PanelFrostKey: EnvironmentKey {
+    static let defaultValue = 1.0
+}
+
+extension EnvironmentValues {
+    var panelFrost: Double {
+        get { self[PanelFrostKey.self] }
+        set { self[PanelFrostKey.self] = newValue }
+    }
 }
 
 private struct SoftIconButtonStyle: ButtonStyle {
@@ -439,6 +489,7 @@ private struct SoftIconButtonStyle: ButtonStyle {
 
 private struct GlassCard: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.panelFrost) private var frost
     var pressureTint: PressureTint = .none
 
     private var tintColor: Color {
@@ -456,7 +507,7 @@ private struct GlassCard: ViewModifier {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 ZStack {
-                    shape.fill(.white.opacity(dark ? 0.045 : 0.36))
+                    shape.fill(.white.opacity((dark ? 0.045 : 0.36) * (0.4 + 0.6 * frost)))
                     // Memory-pressure wash: a light reminder, fading to the right.
                     shape.fill(LinearGradient(
                         colors: [tintColor.opacity(pressureTint.backgroundOpacity(darkMode: dark)),

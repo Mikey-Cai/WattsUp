@@ -28,7 +28,9 @@ final class WattsUpController: NSObject, NSWindowDelegate {
     private let pinnedKey = "WattsUp.isPinned.v3"
     private let pinnedVisibleKey = "WattsUp.pinnedVisible.v3"
     private let legacyPopoverSizeKey = "WattsUp.popoverSize.v2"
-    private let opacityKey = "WattsUp.floatingOpacity.v1"
+    /// The v0.5 "WattsUp.floatingOpacity.v1" faded the whole window; it means
+    /// something else and is not carried over.
+    private let glassKey = "WattsUp.glassFrost.v1"
     private let intervalKey = "WattsUp.refreshInterval.v1"
     private let preferredSize = NSSize(width: 650, height: 690)
     private let minimumSize = NSSize(width: 440, height: 340)
@@ -45,17 +47,16 @@ final class WattsUpController: NSObject, NSWindowDelegate {
         if [1.0, 2.0, 5.0].contains(savedInterval) {
             model.setRefreshInterval(savedInterval)
         }
-        if defaults.object(forKey: opacityKey) != nil {
-            model.opacity = min(1, max(0.55, defaults.double(forKey: opacityKey)))
+        if defaults.object(forKey: glassKey) != nil {
+            model.glassFrost = min(1, max(0, defaults.double(forKey: glassKey)))
         }
 
         model.onTogglePin = { [weak self] in self?.togglePin() }
         model.onClose = { [weak self] in self?.closePanel() }
         model.onQuit = { NSApp.terminate(nil) }
-        model.onOpacityChange = { [weak self] value in
+        model.onGlassFrostChange = { [weak self] value in
             guard let self else { return }
-            if self.model.isPinned { self.panel?.alphaValue = value }
-            self.defaults.set(value, forKey: self.opacityKey)
+            self.defaults.set(value, forKey: self.glassKey)
         }
         model.onWindowDragBegan = { [weak self] in self?.hover.hide() }
         model.onCardDragBegan = { [weak self] in self?.hover.hide() }
@@ -177,17 +178,16 @@ final class WattsUpController: NSObject, NSWindowDelegate {
         applyMode(to: panel)
         let target = targetFrame(for: panel)
         setFrame(target, on: panel)
-        let alpha = model.isPinned ? model.opacity : 1
         if !panel.isVisible {
             panel.alphaValue = 0
             panel.makeKeyAndOrderFront(nil)
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.14
                 context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                panel.animator().alphaValue = alpha
+                panel.animator().alphaValue = 1
             }
         } else {
-            panel.alphaValue = alpha
+            panel.alphaValue = 1
             panel.makeKeyAndOrderFront(nil)
         }
         // Ordering front may let AppKit adjust a titled window; insist on the
@@ -303,7 +303,6 @@ final class WattsUpController: NSObject, NSWindowDelegate {
             // other apps' Stage Manager sets; stationary keeps it out of Exposé.
             panel.collectionBehavior = [.canJoinAllSpaces, .canJoinAllApplications, .fullScreenAuxiliary,
                                         .stationary, .ignoresCycle]
-            panel.alphaValue = panel.isVisible ? model.opacity : panel.alphaValue
         } else {
             panel.level = .statusBar
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]

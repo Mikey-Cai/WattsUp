@@ -243,7 +243,8 @@ struct DashboardSnapshot {
 final class DashboardViewModel: ObservableObject {
     @Published var snapshot: DashboardSnapshot?
     @Published var refreshInterval: Double = 2
-    @Published var opacity: Double = 0.95
+    /// Panel glass: 0 = clear, 1 = frosted and tinted. Never the window's alpha.
+    @Published var glassFrost: Double = DashboardViewModel.defaultGlassFrost
     @Published var isPinned = false
     @Published var isVisible = false
     @Published var errorMessage: String?
@@ -282,7 +283,7 @@ final class DashboardViewModel: ObservableObject {
     }
 
     var onRefreshIntervalChange: ((Double) -> Void)?
-    var onOpacityChange: ((Double) -> Void)?
+    var onGlassFrostChange: ((Double) -> Void)?
     var onVisibilityChange: ((Bool) -> Void)?
     var onRefresh: (() -> Void)?
     var onTogglePin: (() -> Void)?
@@ -307,9 +308,12 @@ final class DashboardViewModel: ObservableObject {
         onRefreshIntervalChange?(interval)
     }
 
-    func setOpacity(_ value: Double) {
-        opacity = min(1, max(0.55, value))
-        onOpacityChange?(opacity)
+    static let defaultGlassFrost = 0.6
+
+    func setGlassFrost(_ value: Double) {
+        guard value.isFinite else { return }
+        glassFrost = min(1, max(0, value))
+        onGlassFrostChange?(glassFrost)
     }
 
     func setTheme(_ value: DashboardTheme) {
