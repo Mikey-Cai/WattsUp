@@ -24,7 +24,7 @@ final class StatusReadoutView: NSView {
             self.values = values
             needsDisplay = true
         }
-        return renderer.width(for: settings.style)
+        return renderer.width(for: settings)
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -46,13 +46,16 @@ struct StatusReadoutRenderer {
     private let gridFont = NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .medium)
     private let labelFont = NSFont.systemFont(ofSize: 8, weight: .medium)
     private let singleFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-    private let labelWidth: CGFloat
-    private let gridValueWidth: CGFloat
+    private let labelWidths: [StatusReadoutMetric: CGFloat]
+    private let valueWidths: [StatusReadoutMetric: CGFloat]
     private let powerWidth: CGFloat
     private let memoryWidth: CGFloat
     private let barWidth: CGFloat = 28
     private let padding: CGFloat = 6
-    private let columnGap: CGFloat = 12
+    // 格内挨紧、格间拉开:标签和数字 3 pt、数字和条 5 pt、两格之间 16 pt,一眼能看出哪个数配哪根条
+    private let labelGap: CGFloat = 3
+    private let barGap: CGFloat = 5
+    private let columnGap: CGFloat = 16
 
     init(physicalBytes: UInt64) {
         let formatter = StatusReadoutFormatter(physicalBytes: physicalBytes)
@@ -60,17 +63,27 @@ struct StatusReadoutRenderer {
         func measured(_ strings: [String], font: NSFont) -> CGFloat {
             ceil(strings.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0)
         }
-        labelWidth = measured(StatusReadoutMetric.allCases.map(\.shortTitle), font: labelFont)
-        gridValueWidth = measured(StatusReadoutMetric.allCases.flatMap { formatter.widthCandidates(for: $0) }, font: gridFont)
+        let labelFont = self.labelFont, gridFont = self.gridFont   // 闭包里不能直接捕获 self
+        labelWidths = Dictionary(uniqueKeysWithValues: StatusReadoutMetric.allCases.map { ($0, measured([$0.shortTitle], font: labelFont)) })
+        // 四格里功率按三位数留宽:Mac 不会到 1000 W,按传感器上限 2000 W 留宽会让数字和条隔得太远
+        valueWidths = Dictionary(uniqueKeysWithValues: StatusReadoutMetric.allCases.map { metric in
+            (metric, measured(metric == .power ? ["—", "10.0 W", "888 W"] : formatter.widthCandidates(for: metric), font: gridFont))
+        })
         powerWidth = measured(formatter.widthCandidates(for: .power), font: singleFont)
         memoryWidth = measured(formatter.widthCandidates(for: .memory), font: singleFont)
     }
 
-    private var cellWidth: CGFloat { labelWidth + 4 + gridValueWidth + 6 + barWidth }
+    /// 每一列(上下两格)按这一列实际放的两项留宽,标签和数字左对齐挨着
+    private func column(_ index: Int, _ slots: [StatusReadoutMetric]) -> (label: CGFloat, value: CGFloat, width: CGFloat) {
+        let metrics = [slots[index], slots[index + 2]]
+        let label = metrics.map { labelWidths[$0] ?? 0 }.max() ?? 0
+        let value = metrics.map { valueWidths[$0] ?? 0 }.max() ?? 0
+        return (label, value, label + labelGap + value + barGap + barWidth)
+    }
 
-    func width(for style: StatusReadoutStyle) -> CGFloat {
-        switch style {
-        case .twoLines: return padding * 2 + cellWidth * 2 + columnGap
+    func width(for settings: StatusReadoutSettings) -> CGFloat {
+        switch settings.style {
+        case .twoLines: return padding * 2 + column(0, settings.slots).width + columnGap + column(1, settings.slots).width
         case .singleLine: return padding * 2 + 10 + 5 + powerWidth + 9 + memoryWidth
         case .iconOnly: return 24
         }
@@ -90,15 +103,20 @@ struct StatusReadoutRenderer {
                  centerY: bounds.midY, font: singleFont, color: memoryColor(values, primary: primary))
         case .twoLines:
             for (index, metric) in settings.slots.enumerated() {
-                let x = padding + CGFloat(index % 2) * (cellWidth + columnGap)
+                let col = column(index % 2, settings.slots)
+                let x = index % 2 == 0 ? padding : padding + column(0, settings.slots).width + columnGap
                 let y = bounds.midY + (index < 2 ? 5.5 : -5.5)
                 let value = formatter.text(for: metric, values: values)
                 let fraction = formatter.fraction(for: metric, values: values, powerCeiling: settings.powerCeiling)
                 let color = metric == .memory ? memoryColor(values, primary: primary) : primary
-                text(metric.shortTitle, left: x, centerY: y, font: labelFont, color: primary.withAlphaComponent(0.72))
-                text(value, right: x + labelWidth + 4 + gridValueWidth, centerY: y, font: gridFont,
+                // 数字右对齐(条上下对齐、数字不跳),标签紧贴数字左边;空出来的地方落在两格之间
+                let valueRight = x + col.label + labelGap + col.value
+                let valueWidth = (value as NSString).size(withAttributes: [.font: gridFont]).width
+                text(metric.shortTitle, right: valueRight - valueWidth - labelGap, centerY: y, font: labelFont,
+                     color: primary.withAlphaComponent(0.72))
+                text(value, right: valueRight, centerY: y, font: gridFont,
                      color: fraction == nil ? primary.withAlphaComponent(0.5) : color)
-                let track = NSRect(x: x + cellWidth - barWidth, y: y - 1.25, width: barWidth, height: 2.5)
+                let track = NSRect(x: x + col.width - barWidth, y: y - 1.25, width: barWidth, height: 2.5)
                 primary.withAlphaComponent(0.18).setFill()
                 NSBezierPath(roundedRect: track, xRadius: 1.25, yRadius: 1.25).fill()
                 if let fraction, fraction > 0 {
@@ -161,7 +179,7 @@ struct StatusReadoutRenderer {
     /// Explicit bitmap context works while locked: it never captures a screen
     /// or needs a visible window. Solid menu backgrounds approximate wallpaper.
     func png(settings: StatusReadoutSettings, values: StatusReadoutValues, dark: Bool) throws -> Data {
-        let size = NSSize(width: width(for: settings.style), height: 24)
+        let size = NSSize(width: width(for: settings), height: 24)
         guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * 2),
                                             pixelsHigh: Int(size.height * 2), bitsPerSample: 8, samplesPerPixel: 4,
                                             hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
