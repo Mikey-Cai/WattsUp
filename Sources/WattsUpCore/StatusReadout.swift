@@ -26,7 +26,7 @@ public enum StatusReadoutMetric: String, CaseIterable, Sendable {
 
     public var shortTitle: String {
         switch self {
-        case .memory: return "内存"
+        case .memory: return "可用"
         case .power: return "功率"
         case .cpu: return "CPU"
         case .gpu: return "GPU"
