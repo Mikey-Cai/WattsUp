@@ -56,6 +56,9 @@ struct StatusReadoutRenderer {
     private let labelGap: CGFloat = 6
     private let barGap: CGFloat = 5
     private let columnGap: CGFloat = 16
+    // 四格左边放一个圆圈闪电(跟仅图标样式同一个),认得出是 WattsUp
+    private let logoSize: CGFloat = 16
+    private let logoGap: CGFloat = 7
 
     init(physicalBytes: UInt64) {
         let formatter = StatusReadoutFormatter(physicalBytes: physicalBytes)
@@ -83,7 +86,7 @@ struct StatusReadoutRenderer {
 
     func width(for settings: StatusReadoutSettings) -> CGFloat {
         switch settings.style {
-        case .twoLines: return padding * 2 + column(0, settings.slots).width + columnGap + column(1, settings.slots).width
+        case .twoLines: return padding * 2 + logoSize + logoGap + column(0, settings.slots).width + columnGap + column(1, settings.slots).width
         case .singleLine: return padding * 2 + 10 + 5 + powerWidth + 9 + memoryWidth
         case .iconOnly: return 24
         }
@@ -102,9 +105,11 @@ struct StatusReadoutRenderer {
             text(formatter.text(for: .memory, values: values), right: powerX + powerWidth + 9 + memoryWidth,
                  centerY: bounds.midY, font: singleFont, color: memoryColor(values, primary: primary))
         case .twoLines:
+            bolt(circled: true, in: NSRect(x: padding, y: bounds.midY - logoSize / 2, width: logoSize, height: logoSize), color: primary)
+            let gridX = padding + logoSize + logoGap
             for (index, metric) in settings.slots.enumerated() {
                 let col = column(index % 2, settings.slots)
-                let x = index % 2 == 0 ? padding : padding + column(0, settings.slots).width + columnGap
+                let x = index % 2 == 0 ? gridX : gridX + column(0, settings.slots).width + columnGap
                 let y = bounds.midY + (index < 2 ? 5.5 : -5.5)
                 let value = formatter.text(for: metric, values: values)
                 let fraction = formatter.fraction(for: metric, values: values, powerCeiling: settings.powerCeiling)
