@@ -52,8 +52,8 @@ struct StatusReadoutRenderer {
     private let memoryWidth: CGFloat
     private let barWidth: CGFloat = 28
     private let padding: CGFloat = 6
-    // 格内挨紧、格间拉开:标签和数字 3 pt、数字和条 5 pt、两格之间 16 pt,一眼能看出哪个数配哪根条
-    private let labelGap: CGFloat = 3
+    // 同一列标签左对齐、数字右对齐;标签和数字之间留 6 pt,数字和条 5 pt,两列之间 16 pt
+    private let labelGap: CGFloat = 6
     private let barGap: CGFloat = 5
     private let columnGap: CGFloat = 16
 
@@ -109,12 +109,8 @@ struct StatusReadoutRenderer {
                 let value = formatter.text(for: metric, values: values)
                 let fraction = formatter.fraction(for: metric, values: values, powerCeiling: settings.powerCeiling)
                 let color = metric == .memory ? memoryColor(values, primary: primary) : primary
-                // 数字右对齐(条上下对齐、数字不跳),标签紧贴数字左边;空出来的地方落在两格之间
-                let valueRight = x + col.label + labelGap + col.value
-                let valueWidth = (value as NSString).size(withAttributes: [.font: gridFont]).width
-                text(metric.shortTitle, right: valueRight - valueWidth - labelGap, centerY: y, font: labelFont,
-                     color: primary.withAlphaComponent(0.72))
-                text(value, right: valueRight, centerY: y, font: gridFont,
+                text(metric.shortTitle, left: x, centerY: y, font: labelFont, color: primary.withAlphaComponent(0.72))
+                text(value, right: x + col.label + labelGap + col.value, centerY: y, font: gridFont,
                      color: fraction == nil ? primary.withAlphaComponent(0.5) : color)
                 let track = NSRect(x: x + col.width - barWidth, y: y - 1.25, width: barWidth, height: 2.5)
                 primary.withAlphaComponent(0.18).setFill()

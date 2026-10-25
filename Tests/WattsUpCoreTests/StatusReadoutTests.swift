@@ -66,19 +66,19 @@ final class StatusReadoutTests: XCTestCase {
     func testDefaultGridOrderAndSelectionSwaps() {
         var settings = StatusReadoutSettings()
         XCTAssertEqual(settings.style, .twoLines)
-        XCTAssertEqual(settings.slots, [.memory, .power, .cpu, .gpu])
+        XCTAssertEqual(settings.slots, [.cpu, .memory, .gpu, .power])
         XCTAssertEqual(settings.powerCeiling, 80)
         settings.select(.gpu, at: 0)
-        XCTAssertEqual(settings.slots, [.gpu, .power, .cpu, .memory])
+        XCTAssertEqual(settings.slots, [.gpu, .memory, .cpu, .power])
         settings.select(.gpu, at: 0)
         settings.select(.power, at: -1)
         settings.select(.cpu, at: 4)
-        XCTAssertEqual(settings.slots, [.gpu, .power, .cpu, .memory])
+        XCTAssertEqual(settings.slots, [.gpu, .memory, .cpu, .power])
     }
 
     func testPartialOrDuplicateSlotsAreRepairedDeterministically() {
-        XCTAssertEqual(StatusReadoutSettings(slots: [.gpu, .gpu, .memory]).slots, [.gpu, .memory, .power, .cpu])
-        XCTAssertEqual(StatusReadoutSettings(slots: []).slots, StatusReadoutMetric.allCases)
+        XCTAssertEqual(StatusReadoutSettings(slots: [.gpu, .gpu, .memory]).slots, [.gpu, .memory, .cpu, .power])
+        XCTAssertEqual(StatusReadoutSettings(slots: []).slots, StatusReadoutSettings.defaultSlots)
     }
 
     func testUserDefaultsRoundTripAndCorruptSettings() throws {
@@ -96,7 +96,7 @@ final class StatusReadoutTests: XCTestCase {
         defaults.set(-3, forKey: StatusReadoutSettings.powerCeilingKey)
         let restored = StatusReadoutSettings(defaults: defaults)
         XCTAssertEqual(restored.style, .twoLines)
-        XCTAssertEqual(restored.slots, [.gpu, .memory, .power, .cpu])
+        XCTAssertEqual(restored.slots, [.gpu, .cpu, .memory, .power])
         XCTAssertEqual(restored.powerCeiling, 80)
     }
 

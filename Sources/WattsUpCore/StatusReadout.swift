@@ -44,13 +44,15 @@ public struct StatusReadoutSettings: Equatable, Sendable {
     public static let powerCeilingKey = "WattsUp.statusPowerCeiling.v1"
     /// Display scale, not a hardware rating. Local PSTR calibration peaked near 59 W.
     public static let defaultPowerCeiling = 80.0
+    /// 按行排:左列 CPU / GPU(英文标签),右列 可用 / 功率(中文标签),同一列的标签和数字才对得齐
+    public static let defaultSlots: [StatusReadoutMetric] = [.cpu, .memory, .gpu, .power]
     public static let powerCeilingRange = 10.0...2_000.0
 
-    public init(style: StatusReadoutStyle = .twoLines, slots: [StatusReadoutMetric] = StatusReadoutMetric.allCases,
+    public init(style: StatusReadoutStyle = .twoLines, slots: [StatusReadoutMetric] = defaultSlots,
                 powerCeiling: Double = defaultPowerCeiling) {
         self.style = style
         var unique: [StatusReadoutMetric] = []
-        for metric in slots + StatusReadoutMetric.allCases where !unique.contains(metric) { unique.append(metric) }
+        for metric in slots + Self.defaultSlots where !unique.contains(metric) { unique.append(metric) }
         self.slots = unique
         self.powerCeiling = Self.validCeiling(powerCeiling)
     }
