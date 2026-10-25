@@ -16,6 +16,8 @@ final class WattsUpController: NSObject, NSWindowDelegate {
     private let model: DashboardViewModel
     private let defaults: UserDefaults
     private var statusItem: NSStatusItem?
+    private var statusReadoutView: StatusReadoutView?
+    private let statusFormatter = StatusReadoutFormatter(physicalBytes: ProcessInfo.processInfo.physicalMemory)
     private var panel: DashboardPanel?
     private var subscriptions = Set<AnyCancellable>()
     private var observers: [NSObjectProtocol] = []
@@ -71,13 +73,20 @@ final class WattsUpController: NSObject, NSWindowDelegate {
         }.store(in: &subscriptions)
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "bolt.circle", accessibilityDescription: "WattsUp：功耗与内存流向")
-        item.button?.image?.isTemplate = true
-        item.button?.toolTip = "WattsUp · 看电从哪来、到哪去"
         item.button?.target = self
         item.button?.action = #selector(statusItemClicked(_:))
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem = item
+        if let button = item.button {
+            let readout = StatusReadoutView(physicalBytes: statusFormatter.physicalBytes)
+            readout.frame = button.bounds
+            readout.autoresizingMask = [.width, .height]
+            button.addSubview(readout)
+            statusReadoutView = readout
+        }
+        model.$statusReadout.combineLatest(model.$statusReadoutValues)
+            .sink { [weak self] settings, values in self?.updateStatusReadout(settings: settings, values: values) }
+            .store(in: &subscriptions)
 
         let workspace = NSWorkspace.shared.notificationCenter
         observers.append(workspace.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
@@ -129,11 +138,23 @@ final class WattsUpController: NSObject, NSWindowDelegate {
         observers.removeAll()
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
         statusItem = nil
+        statusReadoutView = nil
         subscriptions.removeAll()
         setVisible(false)
     }
 
     // MARK: Status item
+
+    private func updateStatusReadout(settings: StatusReadoutSettings, values: StatusReadoutValues) {
+        guard let item = statusItem, let button = item.button, let readout = statusReadoutView else { return }
+        let width = readout.update(settings: settings, values: values)
+        if item.length != width { item.length = width }
+        readout.frame = button.bounds
+        let summary = statusFormatter.summary(values: values, settings: settings)
+        button.toolTip = summary
+        button.setAccessibilityLabel(summary)
+        button.setAccessibilityHelp(summary)
+    }
 
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
         if NSApp.currentEvent?.type == .rightMouseUp {

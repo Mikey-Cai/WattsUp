@@ -242,6 +242,8 @@ struct DashboardSnapshot {
 @MainActor
 final class DashboardViewModel: ObservableObject {
     @Published var snapshot: DashboardSnapshot?
+    @Published var statusReadoutValues = StatusReadoutValues()
+    @Published private(set) var statusReadout: StatusReadoutSettings
     @Published var refreshInterval: Double = 2
     /// Panel glass: 0 = clear, 1 = frosted and tinted. Never the window's alpha.
     @Published var glassFrost: Double = DashboardViewModel.defaultGlassFrost
@@ -265,6 +267,7 @@ final class DashboardViewModel: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        statusReadout = StatusReadoutSettings(defaults: defaults)
         if let raw = defaults.string(forKey: themeKey), let theme = DashboardTheme(rawValue: raw) {
             self.theme = theme
         }
@@ -297,10 +300,36 @@ final class DashboardViewModel: ObservableObject {
     var onMemoryHover: ((MemoryHoverTarget, Bool) -> Void)?
     /// The usage card was shown (true) or hidden (false); its sampling follows.
     var onUsageCardVisibilityChange: ((Bool) -> Void)?
+    var onStatusReadoutChange: ((StatusReadoutSettings) -> Void)?
 
     var visibleCards: [DashboardCard] { cardOrder.filter { !hiddenCards.contains($0) } }
 
     static let powerComponentIDs: Set<String> = ["cpu", "gpu"]
+
+    func setStatusStyle(_ style: StatusReadoutStyle) {
+        var settings = statusReadout
+        settings.style = style
+        setStatusReadout(settings)
+    }
+
+    func setStatusMetric(_ metric: StatusReadoutMetric, at index: Int) {
+        var settings = statusReadout
+        settings.select(metric, at: index)
+        setStatusReadout(settings)
+    }
+
+    func setStatusPowerCeiling(_ watts: Double) {
+        var settings = statusReadout
+        settings.setPowerCeiling(watts)
+        setStatusReadout(settings)
+    }
+
+    private func setStatusReadout(_ settings: StatusReadoutSettings) {
+        guard statusReadout != settings else { return }
+        statusReadout = settings
+        settings.save(to: defaults)
+        onStatusReadoutChange?(settings)
+    }
 
     func setRefreshInterval(_ interval: Double) {
         guard [1.0, 2.0, 5.0].contains(interval) else { return }

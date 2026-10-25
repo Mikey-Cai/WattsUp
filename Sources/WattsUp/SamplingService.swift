@@ -4,9 +4,8 @@ import WattsUpCore
 import WattsUpHardware
 
 /// A single serial queue owns all native handles; polls never overlap.
-/// While the panel is visible it samples at the user's interval. While hidden
-/// it only keeps a slow (60 s) tick, and only when a WattsUp desktop widget is
-/// actually installed — otherwise it stops completely, as in v0.2.
+/// The panel and numeric status item share the user's interval. Icon-only
+/// keeps the original idle policy: 60 s with a widget, otherwise stopped.
 final class SamplingService {
     private let queue = DispatchQueue(label: "io.github.mikey-cai.wattsup.sampling", qos: .utility)
     private var timer: DispatchSourceTimer?
@@ -14,31 +13,55 @@ final class SamplingService {
     private var power: PowerSampler?
     private var memory: MemorySampler?
     private var bandwidth: MemoryBandwidthSampler?
-    /// Only alive while the panel is open and the usage card is shown; the
-    /// widget never needs it.
+    /// Shared by the usage card and the four-cell status readout.
     private var usage: UsageSampler?
     private var usageEnabled = true
     private var visible = false
+    private var statusReadout = false
+    private var statusUsage = false
     private var widgetInstalled = false
     private var interval: Double = 2
-    private let backgroundInterval: Double = 60
     private var lastSampleTime: TimeInterval = 0
+    private var lastSnapshot: HardwareSnapshot?
     private let widgetWriter = WidgetSnapshotWriter()
     var onSnapshot: ((HardwareSnapshot) -> Void)?
+    private var foregroundActive: Bool { visible || statusReadout }
+    private var needsUsage: Bool {
+        SamplingCadence.needsUsage(panelVisible: visible, usageCardVisible: usageEnabled, statusUsage: statusUsage)
+    }
 
     func setVisible(_ value: Bool) {
         queue.async { [weak self] in
             guard let self, self.visible != value else { return }
-            if value {
+            let wasActive = self.foregroundActive
+            self.visible = value
+            if !wasActive && self.foregroundActive {
                 // With a widget installed the samplers survive in the background
                 // with a 60 s baseline. Reusing it would mix a minute-long GPU and
                 // bandwidth average with this instant's PSTR in the first frame.
                 self.power = nil
                 self.bandwidth = nil
             }
-            self.usage = nil
-            self.visible = value
-            self.reschedule(pollNow: value)
+            self.reschedule(pollNow: !wasActive && self.foregroundActive)
+            // A numeric status item already has a fresh frame. Opening the
+            // panel reuses it immediately without an extra hardware poll.
+            if value && wasActive, let snapshot = self.lastSnapshot {
+                DispatchQueue.main.async { [weak self] in self?.onSnapshot?(snapshot) }
+            }
+        }
+    }
+
+    func setStatusReadout(_ settings: StatusReadoutSettings) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            let wasActive = self.foregroundActive
+            self.statusReadout = settings.requiresSampling
+            self.statusUsage = settings.requiresUsage
+            if !wasActive && self.foregroundActive {
+                self.power = nil
+                self.bandwidth = nil
+            }
+            self.reschedule(pollNow: !wasActive && self.foregroundActive)
         }
     }
 
@@ -47,7 +70,7 @@ final class SamplingService {
         queue.async { [weak self] in
             guard let self, self.widgetInstalled != value else { return }
             self.widgetInstalled = value
-            self.reschedule(pollNow: value && !self.visible)
+            self.reschedule(pollNow: value && !self.foregroundActive)
         }
     }
 
@@ -55,8 +78,8 @@ final class SamplingService {
         queue.async { [weak self] in
             guard let self, self.usageEnabled != value else { return }
             self.usageEnabled = value
-            self.usage = nil
-            if value && self.visible { self.poll() }
+            // Keep CPU/rate baselines if the status item still needs them.
+            if !self.needsUsage { self.usage = nil }
         }
     }
 
@@ -71,14 +94,16 @@ final class SamplingService {
 
     func refresh() {
         queue.async { [weak self] in
-            guard let self, self.visible,
+            guard let self, self.foregroundActive,
                   ProcessInfo.processInfo.systemUptime - self.lastSampleTime > 0.25 else { return }
             self.poll()
         }
     }
 
     private func reschedule(pollNow: Bool) {
-        let wanted: Double? = visible ? interval : (widgetInstalled ? backgroundInterval : nil)
+        if !needsUsage { usage = nil }
+        let wanted = SamplingCadence.interval(panelVisible: visible, statusReadout: statusReadout,
+                                              widgetInstalled: widgetInstalled, refreshInterval: interval)
         guard let wanted else {
             timer?.cancel()
             timer = nil
@@ -87,6 +112,7 @@ final class SamplingService {
             memory = nil
             bandwidth = nil
             usage = nil
+            lastSnapshot = nil
             return
         }
         if power == nil { power = PowerSampler() }
@@ -97,7 +123,7 @@ final class SamplingService {
             timer?.cancel()
             let timer = DispatchSource.makeTimerSource(queue: queue)
             timer.schedule(deadline: .now() + wanted, repeating: wanted,
-                           leeway: .milliseconds(Int(wanted * (visible ? 100 : 250))))
+                           leeway: .milliseconds(Int(wanted * (foregroundActive ? 100 : 250))))
             timer.setEventHandler { [weak self] in self?.poll() }
             self.timer = timer
             timerInterval = wanted
@@ -108,17 +134,24 @@ final class SamplingService {
     private func poll() {
         guard let power, let memory else { return }
         lastSampleTime = ProcessInfo.processInfo.systemUptime
-        if visible && usageEnabled && usage == nil { usage = UsageSampler() }
+        if needsUsage && usage == nil { usage = UsageSampler() }
         let value = HardwareSnapshot(timestamp: Date(), power: power.sample(), memory: memory.sample(),
                                      memoryBandwidth: bandwidth?.sample(),
-                                     usage: visible && usageEnabled ? usage?.sample() : nil)
-        widgetWriter.write(value.widgetSnapshot, force: !visible)
-        guard visible else { return }
+                                     usage: needsUsage ? usage?.sample() : nil)
+        lastSnapshot = value
+        widgetWriter.write(value.widgetSnapshot, force: !foregroundActive)
+        guard foregroundActive else { return }
         DispatchQueue.main.async { [weak self] in self?.onSnapshot?(value) }
     }
 }
 
 extension HardwareSnapshot {
+    var statusReadoutValues: StatusReadoutValues {
+        StatusReadoutValues(watts: power.totalWatts,
+                            availableBytes: memory.breakdown.map { Double($0.cachedBytes + $0.freeBytes) },
+                            cpuBusy: usage?.cpuBusy, gpuBusy: usage?.gpuBusy, pressure: headroomLevel)
+    }
+
     /// Panel and widget level: by what is left, not the kernel's compressor-based level.
     var headroomLevel: MemoryPressureLevel {
         let b = memory.breakdown

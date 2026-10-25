@@ -341,6 +341,7 @@ struct DashboardView: View {
                 }
                 Spacer(minLength: 0)
             }
+            statusReadoutSettings
             HStack(spacing: 10) {
                 settingTitle("方向")
                 ForEach(FlowDirection.allCases) { direction in
@@ -391,6 +392,55 @@ struct DashboardView: View {
         }
         .padding(16)
         .glassCard()
+    }
+
+    private var statusReadoutSettings: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                settingTitle("菜单栏")
+                Picker("菜单栏样式", selection: Binding(get: { model.statusReadout.style }, set: model.setStatusStyle)) {
+                    ForEach(StatusReadoutStyle.allCases, id: \.self) { style in
+                        Text(style.title).tag(style)
+                    }
+                }
+                .labelsHidden().pickerStyle(.segmented).controlSize(.small)
+                .help("两行四格显示四项读数和比例条；单行显示功率与内存余量")
+            }
+            if model.statusReadout.style == .twoLines {
+                ForEach(0..<2, id: \.self) { row in
+                    HStack(spacing: 16) {
+                        ForEach(0..<2, id: \.self) { column in
+                            let index = row * 2 + column
+                            Picker(["左上", "右上", "左下", "右下"][index], selection: Binding(
+                                get: { model.statusReadout.slots[index] },
+                                set: { model.setStatusMetric($0, at: index) })) {
+                                ForEach(StatusReadoutMetric.allCases, id: \.self) { metric in
+                                    Text(metric.title).tag(metric)
+                                }
+                            }
+                            .font(.system(size: 10)).controlSize(.small)
+                            .frame(maxWidth: .infinity)
+                            .help("选择项目，与它当前所在的格子交换位置")
+                        }
+                    }
+                }
+                HStack(spacing: 10) {
+                    settingTitle("功率上限")
+                    TextField("功率上限", value: Binding(get: { model.statusReadout.powerCeiling },
+                                                       set: model.setStatusPowerCeiling),
+                              format: .number.precision(.fractionLength(0)))
+                        .textFieldStyle(.roundedBorder).frame(width: 62)
+                        .font(.system(size: 11).monospacedDigit())
+                    Text("W").font(.system(size: 10)).foregroundStyle(.secondary)
+                    Stepper("功率上限", value: Binding(get: { model.statusReadout.powerCeiling },
+                                                    set: model.setStatusPowerCeiling),
+                            in: StatusReadoutSettings.powerCeilingRange, step: 10)
+                        .labelsHidden().controlSize(.small)
+                    Spacer()
+                }
+                .help("功率条的满格刻度，默认 80 W；可设 10–2000 W。超过上限时条满格，数字仍显示实际读数。")
+            }
+        }
     }
 
     private func settingTitle(_ title: String) -> some View {

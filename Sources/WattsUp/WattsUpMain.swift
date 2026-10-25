@@ -15,6 +15,19 @@ struct WattsUpMain {
             runCommand(args)
             return
         }
+        // Run the real status renderer without registering an application
+        // with WindowServer. This debug-only export also works while locked
+        // or in a headless build shell, then exits without starting samplers.
+        if UserDefaults.standard.bool(forKey: "WattsUpDebugRenderStatus") {
+            do {
+                let directory = try StatusReadoutRenderer.renderDebugMatrix()
+                print("WattsUp status PNGs: \(directory.path)")
+            } catch {
+                fputs("WattsUp status render failed: \(error)\n", stderr)
+                exit(1)
+            }
+            return
+        }
         let app = NSApplication.shared
         let delegate = ApplicationDelegate()
         app.delegate = delegate
@@ -189,9 +202,16 @@ private final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             }
         }()
         sampler.onSnapshot = { [weak self] snapshot in
-            var display = snapshot.display
-            if let debugPressure { display.memory.pressure = debugPressure }
-            self?.model.snapshot = display
+            guard let self else { return }
+            var readout = snapshot.statusReadoutValues
+            if let debugPressure { readout.pressure = debugPressure.level }
+            self.model.statusReadoutValues = readout
+            // Keep the dashboard's graph data unchanged while hidden.
+            if self.model.isVisible {
+                var display = snapshot.display
+                if let debugPressure { display.memory.pressure = debugPressure }
+                self.model.snapshot = display
+            }
         }
         model.onVisibilityChange = { [weak self] visible in
             self?.sampler.setVisible(visible)
@@ -200,6 +220,7 @@ private final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         }
         model.onRefreshIntervalChange = { [weak self] seconds in self?.sampler.setInterval(seconds) }
         model.onUsageCardVisibilityChange = { [weak self] shown in self?.sampler.setUsageEnabled(shown) }
+        model.onStatusReadoutChange = { [weak self] settings in self?.sampler.setStatusReadout(settings) }
         sampler.setUsageEnabled(!model.hiddenCards.contains(.usage))
         model.onRefresh = { [weak self] in self?.sampler.refresh() }
         widgetPresence.onChange = { [weak self] installed in self?.sampler.setWidgetInstalled(installed) }
@@ -212,12 +233,14 @@ private final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         let controller = WattsUpController(model: model)
         self.controller = controller
         controller.start()
+        sampler.setStatusReadout(model.statusReadout)
         widgetPresence.start()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         widgetPresence.stop()
         sampler.setVisible(false)
+        sampler.setStatusReadout(.init(style: .iconOnly))
         controller?.stop()
     }
 }

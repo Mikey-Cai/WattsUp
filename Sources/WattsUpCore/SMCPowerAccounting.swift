@@ -6,10 +6,11 @@ public struct SMCPowerAllocation: Equatable, Sendable {
 }
 
 public enum SMCPowerAccounting {
+    public static let maximumWatts = 2_000.0
     /// The calibration uses SMC float power sensors. Do not reinterpret a flag,
     /// counter or an unsupported payload as a watt reading because its key starts P.
     public static func sensorWatts(type: String, value: Double?) -> Double? {
-        guard type == "flt ", let value, value.isFinite, (0...2_000).contains(value) else { return nil }
+        guard type == "flt ", let value, value.isFinite, (0...maximumWatts).contains(value) else { return nil }
         return value
     }
 
